@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -21,14 +21,33 @@ except Exception as exc:
     yt_dlp = None
     print(f"[WARNING] yt_dlp import failed: {exc}")
 
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class PrivateNetworkMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            origin = request.headers.get("Origin")
+            if origin:
+                headers = {
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": request.headers.get("Access-Control-Request-Headers", "*"),
+                    "Access-Control-Allow-Private-Network": "true",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "86400"
+                }
+                return Response(status_code=200, headers=headers)
+        
+        response = await call_next(request)
+        origin = request.headers.get("Origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
 app = FastAPI(title="LENLU DLP API")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(PrivateNetworkMiddleware)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(CURRENT_DIR)
