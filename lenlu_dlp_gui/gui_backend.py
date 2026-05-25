@@ -514,3 +514,12 @@ def get_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return "LENLU DLP Web GUI Static folder initialized. Please create index.html inside the root folder."
+
+
+@app.get("/app")
+@app.get("/local_host.html")
+def get_app():
+    app_path = os.path.join(STATIC_DIR, "local_host.html")
+    if os.path.exists(app_path):
+        return FileResponse(app_path)
+    raise HTTPException(status_code=404, detail="local_host.html not found")

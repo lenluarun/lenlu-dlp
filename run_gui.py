@@ -170,7 +170,7 @@ def open_browser_when_ready() -> None:
             log_sys(f"Server running at {Colors.ACCENT}{BACKEND_URL}{Colors.RESET}. Browser auto-open is disabled by settings.")
             return
         
-        url_to_open = settings.get("deployed_frontend_url") or BACKEND_URL
+        url_to_open = settings.get("deployed_frontend_url") or f"{BACKEND_URL}/app"
         log_sys(f"Opening default web browser to: {Colors.ACCENT}{url_to_open}{Colors.RESET}")
         webbrowser.open(url_to_open)
     else:
@@ -259,7 +259,7 @@ if __name__ == "__main__":
 
     if wait_for_port(BACKEND_HOST, BACKEND_PORT, timeout_seconds=1.0):
         if settings.get("open_browser", True):
-            url_to_open = settings.get("deployed_frontend_url") or BACKEND_URL
+            url_to_open = settings.get("deployed_frontend_url") or f"{BACKEND_URL}/app"
             log_sys(f"Existing server detected at {BACKEND_URL}; opening browser: {url_to_open}")
             webbrowser.open(url_to_open)
         else:

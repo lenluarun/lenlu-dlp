@@ -61,6 +61,7 @@ To make the online website download videos, your local Python backend must be ru
 ## Step 3: Accessing and Connecting
 
 1. Open your deployed online link (e.g., `https://lenlu-dlp.vercel.app`) in your web browser.
-2. The website will automatically probe your local machine at `http://127.0.0.1:8000` to locate the running backend.
-3. Once detected, the connection popup will **automatically close**, and the connection status indicator at the top right will change to **ONLINE**.
-4. You can now use the website online to download videos directly to your local computer's `Downloads` folder!
+2. Click **LAUNCH WEB APP** in the hero section or navigate to `https://lenlu-dlp.vercel.app/local_host.html` directly.
+3. The web app will automatically probe your local machine at `http://127.0.0.1:8000` to locate the running backend.
+4. Once detected, the connection popup will **automatically close**, and the connection status indicator at the top right will change to **ONLINE**.
+5. You can now use the website online to download videos directly to your local computer's `Downloads` folder!

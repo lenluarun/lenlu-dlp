@@ -68,7 +68,7 @@ graph TD
    pip install fastapi uvicorn yt-dlp
    ```
 
-3. Run the GUI startup server script:
+3. Run the GUI startup server script (launches `http://127.0.0.1:8000/app` automatically):
    ```bash
    python run_gui.py
    ```
@@ -81,7 +81,9 @@ graph TD
 
 ## 🌐 Deploying Frontend Online (Vercel / GitHub Pages)
 
-The frontend is a single static HTML file ([index.html](file:///c:/Users/arune/OneDrive/Documents/github_f/lenlu%20dlp/index.html)) located at the repository root.
+The repository contains two main static pages:
+- **Landing Page ([index.html](file:///c:/Users/arune/OneDrive/Documents/github_f/lenlu%20dlp/index.html))**: Served at the root `/` path. Features highlights, instructions, and an interactive embedded preview of the app client.
+- **Web App Client ([local_host.html](file:///c:/Users/arune/OneDrive/Documents/github_f/lenlu%20dlp/local_host.html))**: Served at `/local_host.html` or `/app`. This is the fully-featured graphical downloader GUI.
 
 To host the site online while retaining connection to your local backend machine:
 
@@ -90,9 +92,9 @@ To host the site online while retaining connection to your local backend machine
    vercel .
    ```
 2. **Configure Custom Startup Deployed URL**:
-   * Open the app settings (Tab 5) on the website.
-   * Add your custom online URL (e.g. `https://lenlu-dlp.vercel.app`) to the **DEPLOYED_FRONTEND_URL** setting and click commit.
-   * Now, starting `run_gui.py` locally will automatically open your online site in the web browser instead of localhost.
+   * Open the app settings (Tab 5) on the web app (`/local_host.html`).
+   * Add your custom online URL (e.g. `https://lenlu-dlp.vercel.app/local_host.html`) to the **DEPLOYED_FRONTEND_URL** setting and click commit.
+   * Now, starting `run_gui.py` locally will automatically open your online app client in the web browser instead of localhost.
 
 > [!IMPORTANT]
 > **Browser Security Exemptions:**
