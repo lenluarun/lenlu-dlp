@@ -33,7 +33,7 @@ app.add_middleware(
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(CURRENT_DIR)
 SETTINGS_FILE = os.path.join(CURRENT_DIR, "settings.json")
-STATIC_DIR = os.path.join(CURRENT_DIR, "gui_static")
+STATIC_DIR = PARENT_DIR
 
 
 def get_default_downloads_dir() -> str:
@@ -489,13 +489,9 @@ try:
 except Exception:
     pass
 
-os.makedirs(STATIC_DIR, exist_ok=True)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-
 @app.get("/")
 def get_index():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return "LENLU DLP Web GUI Static folder initialized. Please create index.html inside gui_static."
+    return "LENLU DLP Web GUI Static folder initialized. Please create index.html inside the root folder."

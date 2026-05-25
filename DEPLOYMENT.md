@@ -16,10 +16,10 @@ Vercel is the easiest option and takes less than 2 minutes.
    ```bash
    npm install -g vercel
    ```
-2. **Deploy the `gui_static` folder**:
+2. **Deploy the repository**:
    Open PowerShell/Terminal in the project root and run:
    ```bash
-   vercel lenlu_dlp_gui/gui_static
+   vercel .
    ```
 3. Follow the CLI prompts:
    - Log in or sign up to Vercel (it's free).
@@ -35,7 +35,7 @@ If you have this project hosted on GitHub, you can enable GitHub Pages:
 1. Push your repository to GitHub.
 2. Go to **Settings** > **Pages** inside your GitHub repository page.
 3. Under **Build and deployment**, select **Deploy from a branch**.
-4. Choose `main` branch and the `/lenlu_dlp_gui/gui_static` folder (or keep it as root `/` and select the branch).
+4. Choose `main` branch and the root `/` folder.
 5. Click **Save**. Within a few minutes, your site will be live at `https://<username>.github.io/<repository-name>`.
 
 ---

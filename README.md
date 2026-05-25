@@ -81,13 +81,13 @@ graph TD
 
 ## 🌐 Deploying Frontend Online (Vercel / GitHub Pages)
 
-The frontend is a single static HTML file ([index.html](file:///c:/Users/arune/OneDrive/Documents/github_f/lenlu%20dlp/lenlu_dlp_gui/gui_static/index.html)) located in `lenlu_dlp_gui/gui_static`. 
+The frontend is a single static HTML file ([index.html](file:///c:/Users/arune/OneDrive/Documents/github_f/lenlu%20dlp/index.html)) located at the repository root.
 
 To host the site online while retaining connection to your local backend machine:
 
-1. **Deploy the Static Directory**: Use Vercel to host the static folder:
+1. **Deploy the Static Folder**: Use Vercel to host the repository root:
    ```bash
-   vercel lenlu_dlp_gui/gui_static
+   vercel .
    ```
 2. **Configure Custom Startup Deployed URL**:
    * Open the app settings (Tab 5) on the website.
