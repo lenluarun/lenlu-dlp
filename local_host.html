@@ -717,7 +717,7 @@
             </div>
             <div class="meta-row">
               <span class="meta-label">STREAM_DETAILS:</span>
-              <div class="meta-value" id="meta-format-details">Select a stream to see codec, resolution, and size.</div>
+              <div class="meta-value" id="meta-format-details">Select a stream to see codec and resolution details.</div>
             </div>
             <div class="action-buttons">
               <button id="btn-download-selected" class="terminal-btn primary">EXECUTE_DOWNLOAD</button>
@@ -1073,9 +1073,16 @@
           </div>
           <div class="grid-2">
             <div class="form-group">
+              <label for="settings-cookies-browser">COOKIES_FROM_BROWSER</label>
+              <input type="text" id="settings-cookies-browser" placeholder="edge, chrome, firefox">
+              <small class="form-help">Optional. Leave blank to let yt-dlp try common browsers for YouTube auth.</small>
+            </div>
+            <div class="form-group">
               <label for="settings-deployed-url">DEPLOYED_FRONTEND_URL</label>
               <input type="text" id="settings-deployed-url" placeholder="https://lenlu-dlp.vercel.app">
             </div>
+          </div>
+          <div class="grid-2">
             <div class="form-group" style="justify-content:center;margin-top:14px">
               <label class="terminal-checkbox">
                 <input type="checkbox" id="settings-open-browser" checked>
@@ -1083,6 +1090,7 @@
                 AUTO_OPEN_BROWSER
               </label>
             </div>
+            <div></div>
           </div>
           <div class="checkbox-group">
             <label class="terminal-checkbox"><input type="checkbox" id="settings-sponsorblock"><span class="checkbox-custom"></span>SPONSOR_BLOCK (Auto-skip YouTube sponsor segments)</label>
@@ -1139,6 +1147,23 @@
             <button id="btn-refresh-library" class="terminal-btn secondary">REFRESH_LIBRARY</button>
           </div>
           <small class="form-help" style="display:block;margin-top:8px">Clear removes every file in the active download folder.</small>
+        </div>
+
+        <div class="card-border">
+          <div class="card-header">INTERFACE_ALERT_TESTER</div>
+          <div class="settings-actions" style="display:flex;gap:7px;flex-wrap:wrap">
+            <button onclick="showToast('Success Toast Triggered!', 'ok')" class="terminal-btn-compact" style="color:var(--success-color);border-color:var(--success-color)">SUCCESS_TOAST</button>
+            <button onclick="showToast('Info Toast Triggered!', 'info')" class="terminal-btn-compact" style="color:var(--accent-color);border-color:var(--accent-color)">INFO_TOAST</button>
+            <button onclick="showToast('Warning Toast Triggered!', 'warn')" class="terminal-btn-compact" style="color:var(--warning-color);border-color:var(--warning-color)">WARN_TOAST</button>
+            <button onclick="showToast('Error Toast Triggered!', 'error')" class="terminal-btn-compact" style="color:var(--alert-color);border-color:var(--alert-color)">ERROR_TOAST</button>
+            <button onclick="showMessageModal('INFO_MODAL', 'This is a test of the informational message modal.', 'info')" class="terminal-btn-compact">INFO_MODAL</button>
+            <button onclick="showMessageModal('WARNING_MODAL', 'This is a test of the warning message modal.', 'warn')" class="terminal-btn-compact" style="color:var(--warning-color);border-color:var(--warning-color)">WARN_MODAL</button>
+            <button onclick="showMessageModal('ERROR_MODAL', 'This is a test of the error message modal.', 'error')" class="terminal-btn-compact" style="color:var(--alert-color);border-color:var(--alert-color)">ERROR_MODAL</button>
+            <button onclick="openConnectionModal()" class="terminal-btn-compact">CONNECTION_POPUP</button>
+            <button onclick="showShortcuts()" class="terminal-btn-compact">SHORTCUTS_OVERLAY</button>
+            <button onclick="document.getElementById('permission-modal').classList.remove('hidden')" class="terminal-btn-compact">PERMISSIONS_MODAL</button>
+          </div>
+          <small class="form-help" style="display:block;margin-top:8px">Test the styling and behavior of different system dialogs, overlays, and alerts.</small>
         </div>
 
         <div class="card-border">
@@ -1350,6 +1375,7 @@ const settingsFormat = document.getElementById("settings-format");
 const settingsSpeed = document.getElementById("settings-speed");
 const settingsProxy = document.getElementById("settings-proxy");
 const settingsCookies = document.getElementById("settings-cookies");
+const settingsCookiesBrowser = document.getElementById("settings-cookies-browser");
 const settingsSponsorblock = document.getElementById("settings-sponsorblock");
 const settingsMetadata = document.getElementById("settings-metadata");
 const settingsThumbnail = document.getElementById("settings-thumbnail");
@@ -1579,6 +1605,7 @@ const COMMANDS = [
   { cmd: "site-folder", hint: "Use default site folder" },
   { cmd: "help formats", hint: "Show format guide" },
   { cmd: "help download", hint: "Show download guide" },
+  { cmd: "demo-alerts", hint: "Show/test all alerts and modals" },
   { cmd: "--help", hint: "Show all commands" },
 ];
 promptInput.addEventListener("input", () => {
@@ -1849,8 +1876,17 @@ function executeCustomShellCommand() {
   if (lcmd === "site-folder") { switchTab("tab-settings"); document.getElementById("btn-use-site-folder").click(); promptInput.value = ""; return; }
   if (lcmd === "help formats") { showMessageModal("FORMAT_GUIDE", "best: best quality single file.\nbestvideo+bestaudio/best: highest possible res by combining video and audio streams.\nbestaudio/best: extract highest quality audio.", "info"); promptInput.value = ""; return; }
   if (lcmd === "help download") { showMessageModal("DOWNLOAD_GUIDE", "1. Paste URL in Tab [1].\n2. Click FETCH_INFO to see available formats and matrix.\n3. Choose stream and EXECUTE.", "info"); promptInput.value = ""; return; }
+  if (lcmd === "demo-alerts" || lcmd === "test-alerts") {
+    showToast("Success notification!", "ok");
+    setTimeout(() => showToast("Info notification!", "info"), 400);
+    setTimeout(() => showToast("Warning alert!", "warn"), 800);
+    setTimeout(() => showToast("Error alert!", "error"), 1200);
+    setTimeout(() => showMessageModal("CONSOLE_ALERT_TEST", "This is a demonstration of the system alert modal triggered via the terminal prompt.", "info"), 1600);
+    promptInput.value = "";
+    return;
+  }
   if (lcmd === "--help") {
-    showMessageModal("AVAILABLE COMMANDS", "status, clear, library, fetch, download, batch, queue, stats, matrix, settings, select-folder, site-folder, help formats, help download, --help", "info");
+    showMessageModal("AVAILABLE COMMANDS", "status, clear, library, fetch, download, batch, queue, stats, matrix, settings, select-folder, site-folder, help formats, help download, demo-alerts, --help", "info");
     promptInput.value = ""; return;
   }
 
@@ -2002,17 +2038,26 @@ function connectLocalServer(forceShowModal = false) {
 function setupSSE() {
   closeSSE();
   try {
-    eventSource = new EventSource(apiBaseUrl + "/api/events");
-    eventSource.onmessage = function(event) {
-      if (event.data === 'ping') return;
+    eventSource = new EventSource(apiBaseUrl + "/api/progress/stream");
+    eventSource.addEventListener("progress", function(event) {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'progress') handleProgressUpdate(data);
-        else if (data.type === 'log') logToTerminal(data.message, data.level);
-        else if (data.type === 'complete') handleDownloadComplete();
-        else if (data.type === 'error') handleDownloadError(data.message);
-      } catch(e) { console.error("SSE parse err:", e); }
-    };
+        handleProgressUpdate(data);
+      } catch (e) {
+        console.error("SSE progress parse err:", e);
+      }
+    });
+    eventSource.addEventListener("log", function(event) {
+      try {
+        const data = JSON.parse(event.data);
+        logToTerminal(data.message || "", data.level || "info");
+      } catch (e) {
+        console.error("SSE log parse err:", e);
+      }
+    });
+    eventSource.addEventListener("ping", function() {
+      // keep-alive from backend; no UI action needed
+    });
     eventSource.onerror = function() {
       console.warn("SSE connection error");
       closeSSE();
@@ -2190,7 +2235,7 @@ function populateFormatSelect(formats) {
     relevantFormats.forEach(f => {
       const opt = document.createElement("option");
       opt.value = f.format_id;
-      opt.textContent = `▶ ${f.resolution || "?"} (${f.ext}) - ${formatBytes(f.filesize || f.filesize_approx)}`;
+      opt.textContent = `▶ ${f.resolution || "?"} (${f.ext})`;
       group.appendChild(opt);
     });
     metaFormatSelect.appendChild(group);
@@ -2202,7 +2247,7 @@ function populateFormatSelect(formats) {
     videoFormats.forEach(f => {
       const opt = document.createElement("option");
       opt.value = f.format_id;
-      opt.textContent = `🎬 ${f.resolution || "?"} (${f.ext}) [V:${f.vcodec}] - ${formatBytes(f.filesize || f.filesize_approx)}`;
+      opt.textContent = `🎬 ${f.resolution || "?"} (${f.ext}) [V:${f.vcodec}]`;
       group.appendChild(opt);
     });
     metaFormatSelect.appendChild(group);
@@ -2214,7 +2259,7 @@ function populateFormatSelect(formats) {
     audioFormats.forEach(f => {
       const opt = document.createElement("option");
       opt.value = f.format_id;
-      opt.textContent = `🎵 Audio (${f.ext}) [A:${f.acodec}] - ${formatBytes(f.filesize || f.filesize_approx)}`;
+      opt.textContent = `🎵 Audio (${f.ext}) [A:${f.acodec}]`;
       group.appendChild(opt);
     });
     metaFormatSelect.appendChild(group);
@@ -2228,7 +2273,7 @@ function updateFormatDetails() {
   if (!currentMetadata || !currentMetadata.formats) return;
   const fmt = currentMetadata.formats.find(f => f.format_id === fid);
   if (!fmt) { metaFormatDetails.textContent = "Custom format selected."; return; }
-  metaFormatDetails.innerHTML = `Res: <span class="text-glow">${fmt.resolution||"N/A"}</span> | Ext: ${fmt.ext} | VCodec: ${fmt.vcodec} | ACodec: ${fmt.acodec} | Size: ${formatBytes(fmt.filesize || fmt.filesize_approx)}`;
+  metaFormatDetails.innerHTML = `Res: <span class="text-glow">${fmt.resolution||"N/A"}</span> | Ext: ${fmt.ext} | VCodec: ${fmt.vcodec} | ACodec: ${fmt.acodec}`;
 }
 
 // ─── DOWNLOAD EXECUTION ───────────────────────────────────────
@@ -2394,7 +2439,6 @@ function renderMatrix(formats) {
     if (isBestVideo) badgeHTML += `<span class="best-badge">BEST_V</span>`;
     if (isBestAudio) badgeHTML += `<span class="best-badge">BEST_A</span>`;
     const fps = f.fps ? f.fps + "fps" : "—";
-    const size = formatBytes(f.filesize || f.filesize_approx);
 
     let passesFilter = true;
     const q = matrixSearch.value.toLowerCase();
@@ -2412,7 +2456,7 @@ function renderMatrix(formats) {
         <td style="color:${type==='AUDIO'?'var(--warning-color)':type==='VIDEO'?'#00bfff':'var(--success-color)'}">${type} ${badgeHTML}</td>
         <td>${f.ext}</td>
         <td>${f.resolution || "audio only"}</td>
-        <td>${size}</td>
+        <td>${f.filesize || "—"}</td>
         <td style="font-size:10px;color:var(--text-dim)">${f.vcodec || "none"}</td>
         <td style="font-size:10px;color:var(--text-dim)">${f.acodec || "none"}</td>
         <td>${fps}</td>
@@ -2516,6 +2560,7 @@ function populateSettingsTab() {
   settingsSpeed.value = opts.ratelimit ? String(opts.ratelimit) : 'none';
   settingsProxy.value = opts.proxy || '';
   settingsCookies.value = opts.cookiefile || '';
+  settingsCookiesBrowser.value = opts.cookiesfrombrowser || '';
   settingsSponsorblock.value = opts.sponsorblock_remove && opts.sponsorblock_remove.length > 0;
   settingsMetadata.checked = opts.postprocessors && opts.postprocessors.some(p => p.key === 'FFmpegMetadata');
   settingsThumbnail.checked = opts.writethumbnail === true;
@@ -2529,6 +2574,7 @@ btnSaveSettings.addEventListener("click", async () => {
     ratelimit: settingsSpeed.value === 'none' ? null : settingsSpeed.value,
     proxy: settingsProxy.value.trim() || null,
     cookiefile: settingsCookies.value.trim() || null,
+    cookiesfrombrowser: settingsCookiesBrowser.value.trim() || null,
     sponsorblock_remove: settingsSponsorblock.checked ? ['sponsor'] : null,
     writethumbnail: settingsThumbnail.checked,
     embedmetadata: settingsMetadata.checked
@@ -2547,8 +2593,28 @@ document.getElementById("btn-use-site-folder").addEventListener("click", () => {
   btnSaveSettings.click();
 });
 async function selectDownloadFolderFromBrowser() {
+  if (activeMode === "local") {
+    try {
+      const res = await apiFetch("/api/select-download-folder", { method: "POST" });
+      if (!res.ok) throw new Error(await getResponseError(res, "Folder selection failed."));
+      const data = await res.json();
+      const selectedPath = data && data.path ? String(data.path) : "";
+      if (!selectedPath) throw new Error("No folder path returned from backend picker.");
+
+      settingsDir.value = selectedPath;
+      currentSettings = currentSettings || {};
+      currentSettings.downloads_dir = selectedPath;
+      showToast("Download folder updated.", "ok");
+      fetchLibrary();
+      return;
+    } catch (err) {
+      showToast(`Folder picker error: ${err.message || err}`, "error");
+      return;
+    }
+  }
+
   try {
-    const dirHandle = await window.showDirectoryPicker();
+    await window.showDirectoryPicker();
     showMessageModal("BROWSER_API_LIMITATION", "Browser security prevents getting the absolute path from the folder picker. Please copy/paste the path manually.", "warn");
   } catch (err) {
     if (err.name !== 'AbortError') showToast("Folder picker error.", "error");

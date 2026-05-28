@@ -276,8 +276,7 @@ def permissions_check() -> Dict[str, Any]:
     }
 
 
-@app.get("/api/info")
-def get_info(url: str):
+def _get_info_impl(url: str) -> Dict[str, Any]:
     if yt_dlp is None:
         raise HTTPException(status_code=500, detail="yt-dlp is not installed.")
 
@@ -335,6 +334,17 @@ def get_info(url: str):
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/info")
+def get_info(url: str):
+    return _get_info_impl(url)
+
+
+@app.post("/api/info")
+def post_info(payload: Dict[str, Any]):
+    url = (payload or {}).get("url", "")
+    return _get_info_impl(url)
 
 
 @app.post("/api/download")
@@ -469,6 +479,54 @@ def clear_all_downloads():
             continue
 
     return {"status": "ok", "removed": removed}
+
+
+@app.get("/api/library")
+def get_library():
+    settings = load_settings()
+    downloads_dir = settings["downloads_dir"]
+    files = []
+
+    if os.path.exists(downloads_dir):
+        for entry in os.scandir(downloads_dir):
+            if not entry.is_file():
+                continue
+            ext = pathlib.Path(entry.name).suffix.lower()
+            if ext in [".part", ".ytdl", ".temp"]:
+                continue
+            stat = entry.stat()
+            files.append(
+                {
+                    "name": entry.name,
+                    "size": stat.st_size,
+                    "modified": stat.st_mtime,
+                }
+            )
+
+    files.sort(key=lambda item: item["modified"], reverse=True)
+    return {"folder": downloads_dir, "files": files}
+
+
+@app.delete("/api/library/{filename}")
+def delete_library_file(filename: str):
+    return delete_downloaded_file(filename)
+
+
+@app.post("/api/library/clear_all")
+def clear_library():
+    return clear_all_downloads()
+
+
+@app.get("/api/play/{filename}")
+def play_downloaded_file(filename: str):
+    settings = load_settings()
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join(settings["downloads_dir"], safe_name)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    return FileResponse(filepath)
 
 
 @app.get("/api/progress/stream")
