@@ -874,6 +874,22 @@
               <span class="player-title truncate" id="now-playing-title">NOW PLAYING: None</span>
               <button class="terminal-btn-compact" id="btn-close-player">CLOSE_PLAYER</button>
             </div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px">
+              <button class="terminal-btn-compact" id="btn-player-replay">-10s</button>
+              <button class="terminal-btn-compact" id="btn-player-forward">+10s</button>
+              <button class="terminal-btn-compact" id="btn-player-speed">1.00x</button>
+              <button class="terminal-btn-compact" id="btn-player-loop">LOOP:OFF</button>
+              <button class="terminal-btn-compact" id="btn-player-mute">MUTE</button>
+              <button class="terminal-btn-compact" id="btn-player-pip">PiP</button>
+              <button class="terminal-btn-compact" id="btn-player-fullscreen">FULLSCREEN</button>
+              <button class="terminal-btn-compact" id="btn-player-open-tab">OPEN_TAB</button>
+              <button class="terminal-btn-compact" id="btn-player-download">DOWNLOAD_FILE</button>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--text-dim)">
+              <span id="player-time">00:00 / 00:00</span>
+              <label>VOL</label>
+              <input id="player-volume" type="range" min="0" max="1" step="0.05" value="1" style="width:160px">
+            </div>
             <div class="media-element-wrapper">
               <video id="web-player" controls preload="metadata"></video>
               <audio id="web-audio-player" controls preload="metadata" class="hidden"></audio>
@@ -1243,7 +1259,10 @@
       <p class="modal-desc" id="message-modal-body"></p>
       <div class="message-status perm-msg" id="message-modal-status"></div>
     </div>
-    <div class="modal-footer"><button id="btn-close-message" class="terminal-btn primary">OK</button></div>
+    <div class="modal-footer">
+      <button id="btn-cancel-message" class="terminal-btn secondary hidden">CANCEL</button>
+      <button id="btn-close-message" class="terminal-btn primary">OK</button>
+    </div>
   </div>
 </div>
 
@@ -1297,6 +1316,7 @@ async function getResponseError(response, defaultMsg) {
 // ─── STATE ───────────────────────────────────────────────────
 let currentSettings = {};
 let currentMetadata = null;
+let currentMetadataSourceUrl = "";
 let commandHistory = [];
 let historyIndex = -1;
 let eventSource = null;
@@ -1314,6 +1334,10 @@ let batchRunning = false;
 let downloadQueue = [];
 let queueRunning = false;
 let acSelectedIndex = -1;
+let currentPlayerUrl = "";
+let currentPlayerFileName = "";
+let playerRateIndex = 1;
+const playerRates = [0.75, 1.0, 1.25, 1.5, 2.0];
 
 // ─── DOM REFS ────────────────────────────────────────────────
 const bodyEl = document.body;
@@ -1369,6 +1393,17 @@ const nowPlayingTitle = document.getElementById("now-playing-title");
 const webPlayer = document.getElementById("web-player");
 const webAudioPlayer = document.getElementById("web-audio-player");
 const btnClosePlayer = document.getElementById("btn-close-player");
+const playerTime = document.getElementById("player-time");
+const btnPlayerReplay = document.getElementById("btn-player-replay");
+const btnPlayerForward = document.getElementById("btn-player-forward");
+const btnPlayerSpeed = document.getElementById("btn-player-speed");
+const btnPlayerLoop = document.getElementById("btn-player-loop");
+const btnPlayerMute = document.getElementById("btn-player-mute");
+const btnPlayerPip = document.getElementById("btn-player-pip");
+const btnPlayerFullscreen = document.getElementById("btn-player-fullscreen");
+const btnPlayerOpenTab = document.getElementById("btn-player-open-tab");
+const btnPlayerDownload = document.getElementById("btn-player-download");
+const playerVolume = document.getElementById("player-volume");
 const libraryFolderIndicator = document.getElementById("library-folder-indicator");
 const settingsDir = document.getElementById("settings-dir");
 const settingsFormat = document.getElementById("settings-format");
@@ -1395,6 +1430,7 @@ const messageModalTitle = document.getElementById("message-modal-title");
 const messageModalBody = document.getElementById("message-modal-body");
 const messageModalStatus = document.getElementById("message-modal-status");
 const btnCloseMessage = document.getElementById("btn-close-message");
+const btnCancelMessage = document.getElementById("btn-cancel-message");
 const promptInput = document.getElementById("prompt-input");
 const btnSendCmd = document.getElementById("btn-send-cmd");
 const metaFormatDetails = document.getElementById("meta-format-details");
@@ -1420,6 +1456,10 @@ function showMessageModal(title, body, level = "info") {
   messageModalBody.textContent = body;
   messageModalStatus.textContent = level ? level.toUpperCase() : "";
   messageModalStatus.className = `message-status ${level}`;
+  btnCancelMessage.classList.add("hidden");
+  btnCloseMessage.textContent = "OK";
+  btnCloseMessage.onclick = hideMessageModal;
+  btnCancelMessage.onclick = hideMessageModal;
   messageModal.classList.remove("hidden");
 }
 function hideMessageModal() {
@@ -1427,8 +1467,32 @@ function hideMessageModal() {
   messageModalTitle.textContent = "";
   messageModalBody.textContent = "";
   messageModalStatus.textContent = "";
+  btnCancelMessage.classList.add("hidden");
+  btnCloseMessage.textContent = "OK";
+  btnCloseMessage.onclick = hideMessageModal;
+  btnCancelMessage.onclick = hideMessageModal;
 }
 window.alert = (msg) => showMessageModal("[!] WEBSITE_MESSAGE", String(msg), "warn");
+
+function showConfirmModal(title, body, level = "warn", okLabel = "CONFIRM") {
+  return new Promise((resolve) => {
+    messageModalTitle.textContent = title;
+    messageModalBody.textContent = body;
+    messageModalStatus.textContent = level ? level.toUpperCase() : "";
+    messageModalStatus.className = `message-status ${level}`;
+    btnCancelMessage.classList.remove("hidden");
+    btnCloseMessage.textContent = okLabel;
+    const cleanup = () => {
+      btnCloseMessage.onclick = hideMessageModal;
+      btnCancelMessage.onclick = hideMessageModal;
+      btnCancelMessage.classList.add("hidden");
+      btnCloseMessage.textContent = "OK";
+    };
+    btnCloseMessage.onclick = () => { cleanup(); hideMessageModal(); resolve(true); };
+    btnCancelMessage.onclick = () => { cleanup(); hideMessageModal(); resolve(false); };
+    messageModal.classList.remove("hidden");
+  });
+}
 
 // ─── SHORTCUTS ────────────────────────────────────────────────
 function showShortcuts() { document.getElementById("shortcuts-overlay").classList.remove("hidden"); }
@@ -1692,6 +1756,8 @@ async function startBatch() {
       if (speed && speed !== "none") params.append("ratelimit", speed);
       const resp = await apiFetch("/api/download?" + params.toString(), { method: "POST" });
       if (!resp.ok) throw new Error(await getResponseError(resp, "Download failed."));
+      const waitResult = await waitForTaskCompletion(60 * 60 * 1000);
+      if (!waitResult.ok) throw new Error(waitResult.error || "Download failed.");
       batchQueue[i].status = "done";
       completed++;
       recordDownload(batchQueue[i].url, fmt, 0, true, "—");
@@ -1738,7 +1804,7 @@ function initQueue() {
     const url = document.getElementById("queue-url-input").value.trim();
     if (!url) { showToast("Enter a URL first.", "warn"); return; }
     const fmt = document.getElementById("queue-format-select").value;
-    addUrlToQueue(url, fmt, currentMetadata ? currentMetadata.title : url);
+    addUrlToQueue(url, fmt);
     document.getElementById("queue-url-input").value = "";
   });
   document.getElementById("btn-queue-run").addEventListener("click", runQueue);
@@ -1753,12 +1819,42 @@ function addCurrentToQueue() {
   const url = videoUrlInput.value.trim();
   if (!url) { showToast("No URL to add.", "warn"); return; }
   const fmt = metaFormatSelect.value;
-  const title = currentMetadata ? currentMetadata.title : url;
-  addUrlToQueue(url, fmt, title);
+  addUrlToQueue(url, fmt);
   showToast("Added to queue.", "ok");
 }
-function addUrlToQueue(url, format, title) {
-  downloadQueue.push({ url, format, title, status: "queued", progress: 0 });
+function normalizeQueueUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    u.hash = "";
+    return u.toString();
+  } catch (e) {
+    return raw;
+  }
+}
+function buildQueueTitle(url) {
+  const normalized = normalizeQueueUrl(url);
+  const currentUrlNormalized = normalizeQueueUrl(videoUrlInput.value);
+  if (currentMetadata && currentMetadata.title && normalized && normalized === currentUrlNormalized && currentMetadataSourceUrl === currentUrlNormalized) {
+    return currentMetadata.title;
+  }
+  try {
+    const u = new URL(normalized);
+    return `${u.hostname}${u.pathname}`;
+  } catch (e) {
+    return normalized;
+  }
+}
+function addUrlToQueue(url, format) {
+  const normalizedUrl = normalizeQueueUrl(url);
+  if (!normalizedUrl) { showToast("Invalid URL.", "warn"); return; }
+  if (downloadQueue.some(item => normalizeQueueUrl(item.url) === normalizedUrl && item.status !== "done")) {
+    showToast("This URL is already in queue.", "warn");
+    return;
+  }
+  const title = buildQueueTitle(normalizedUrl);
+  downloadQueue.push({ url: normalizedUrl, format, title, status: "queued", progress: 0 });
   renderQueue();
 }
 function renderQueue() {
@@ -1810,6 +1906,8 @@ async function runQueue() {
       const params = new URLSearchParams({ url: downloadQueue[i].url, format: downloadQueue[i].format });
       const resp = await apiFetch("/api/download?" + params.toString(), { method: "POST" });
       if (!resp.ok) throw new Error(await getResponseError(resp, "Queue item failed."));
+      const waitResult = await waitForTaskCompletion(60 * 60 * 1000);
+      if (!waitResult.ok) throw new Error(waitResult.error || "Queue item failed.");
       downloadQueue[i].status = "done";
       downloadQueue[i].progress = 100;
       recordDownload(downloadQueue[i].title, downloadQueue[i].format, 0, true, "—");
@@ -1824,6 +1922,26 @@ async function runQueue() {
   document.getElementById("btn-queue-run").disabled = false;
   document.getElementById("btn-queue-stop").classList.add("hidden");
   showToast("Queue finished.", "ok");
+}
+
+async function waitForTaskCompletion(timeoutMs = 3600000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await apiFetch("/api/task-status");
+      if (!res.ok) throw new Error("Status check failed.");
+      const data = await res.json();
+      const status = String(data.status || "").toLowerCase();
+      const running = Boolean(data.running);
+      if (!running && (status === "success" || status === "idle")) return { ok: true };
+      if (status === "error") return { ok: false, error: "Download ended with error." };
+      if (status === "cancelled") return { ok: false, error: "Download was cancelled." };
+    } catch (err) {
+      return { ok: false, error: err.message || "Status polling failed." };
+    }
+    await new Promise(resolve => setTimeout(resolve, 700));
+  }
+  return { ok: false, error: "Timed out waiting for download completion." };
 }
 
 // ─── CONSOLE / TERMINAL FEED ──────────────────────────────────
@@ -2189,6 +2307,7 @@ async function fetchVideoMetadata() {
   matrixContainer.classList.add("hidden");
   matrixNote.classList.remove("hidden");
   currentMetadata = null;
+  currentMetadataSourceUrl = "";
   btnFetch.disabled = true;
   btnFetch.textContent = "FETCHING...";
 
@@ -2204,6 +2323,7 @@ async function fetchVideoMetadata() {
     if (!response.ok) throw new Error(await getResponseError(response, "Failed to fetch metadata."));
     const data = await response.json();
     currentMetadata = data;
+    currentMetadataSourceUrl = normalizeQueueUrl(url);
     metaTitle.textContent = data.title || "Unknown Title";
     metaChannel.textContent = data.uploader || "Unknown Uploader";
     metaDuration.textContent = formatDuration(data.duration);
@@ -2510,17 +2630,21 @@ async function fetchLibrary() {
   }
 }
 async function deleteFile(encodedName) {
-  if (!confirm(`Permanently delete this file?`)) return;
+  const ok = await showConfirmModal("DELETE_FILE", "Permanently delete this file?", "warn", "DELETE");
+  if (!ok) return;
   try {
+    const targetName = decodeURIComponent(encodedName);
+    if (currentPlayerFileName && currentPlayerFileName === targetName) closePlayer();
     const res = await apiFetch(`/api/library/${encodedName}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error("Delete failed.");
+    if (!res.ok) throw new Error(await getResponseError(res, "Delete failed."));
     showToast("File deleted.", "ok");
     fetchLibrary();
   } catch(e) { showToast(`Delete error: ${e.message}`, "error"); }
 }
 document.getElementById("btn-clear-all-downloads").addEventListener("click", async () => {
   if (activeMode === "serverless") return;
-  if (!confirm("DANGER: This will delete ALL files in the download folder. Proceed?")) return;
+  const ok = await showConfirmModal("CLEAR_LIBRARY", "DANGER: This will delete ALL files in the download folder. Proceed?", "error", "DELETE_ALL");
+  if (!ok) return;
   try {
     const res = await apiFetch("/api/library/clear_all", { method: "POST" });
     if (!res.ok) throw new Error("Clear all failed.");
@@ -2533,21 +2657,95 @@ document.getElementById("btn-refresh-library").addEventListener("click", fetchLi
 // ─── MEDIA PLAYERS ────────────────────────────────────────────
 function initMediaPlayers() {
   btnClosePlayer.addEventListener("click", closePlayer);
+  const updateTime = () => {
+    const media = getActiveMediaElement();
+    if (!media || !playerTime) return;
+    const cur = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+    const dur = Number.isFinite(media.duration) ? media.duration : 0;
+    const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    playerTime.textContent = `${fmt(cur)} / ${dur > 0 ? fmt(dur) : "00:00"}`;
+  };
+  [webPlayer, webAudioPlayer].forEach(el => {
+    el.addEventListener("timeupdate", updateTime);
+    el.addEventListener("loadedmetadata", updateTime);
+  });
+  if (btnPlayerReplay) btnPlayerReplay.addEventListener("click", () => {
+    const m = getActiveMediaElement();
+    if (m) m.currentTime = Math.max(0, (m.currentTime || 0) - 10);
+  });
+  if (btnPlayerForward) btnPlayerForward.addEventListener("click", () => {
+    const m = getActiveMediaElement();
+    if (m) m.currentTime = Math.min((m.duration || m.currentTime || 0), (m.currentTime || 0) + 10);
+  });
+  if (btnPlayerSpeed) btnPlayerSpeed.addEventListener("click", () => {
+    const m = getActiveMediaElement();
+    if (!m) return;
+    playerRateIndex = (playerRateIndex + 1) % playerRates.length;
+    m.playbackRate = playerRates[playerRateIndex];
+    btnPlayerSpeed.textContent = `${playerRates[playerRateIndex].toFixed(2)}x`;
+  });
+  if (btnPlayerLoop) btnPlayerLoop.addEventListener("click", () => {
+    const m = getActiveMediaElement();
+    if (!m) return;
+    m.loop = !m.loop;
+    btnPlayerLoop.textContent = `LOOP:${m.loop ? "ON" : "OFF"}`;
+  });
+  if (btnPlayerMute) btnPlayerMute.addEventListener("click", () => {
+    const m = getActiveMediaElement();
+    if (!m) return;
+    m.muted = !m.muted;
+    btnPlayerMute.textContent = m.muted ? "UNMUTE" : "MUTE";
+  });
+  if (btnPlayerPip) btnPlayerPip.addEventListener("click", async () => {
+    if (webPlayer.classList.contains("hidden")) return;
+    try { await webPlayer.requestPictureInPicture(); } catch (e) { showToast("PiP not available.", "warn"); }
+  });
+  if (btnPlayerFullscreen) btnPlayerFullscreen.addEventListener("click", async () => {
+    if (webPlayer.classList.contains("hidden")) return;
+    try { await webPlayer.requestFullscreen(); } catch (e) { showToast("Fullscreen not available.", "warn"); }
+  });
+  if (btnPlayerOpenTab) btnPlayerOpenTab.addEventListener("click", () => {
+    if (currentPlayerUrl) window.open(currentPlayerUrl, "_blank");
+  });
+  if (btnPlayerDownload) btnPlayerDownload.addEventListener("click", () => {
+    if (!currentPlayerUrl) return;
+    const a = document.createElement("a");
+    a.href = currentPlayerUrl;
+    a.download = currentPlayerFileName || "media";
+    a.click();
+  });
+  if (playerVolume) playerVolume.addEventListener("input", () => {
+    const m = getActiveMediaElement();
+    if (m) m.volume = Number(playerVolume.value);
+  });
+}
+function getActiveMediaElement() {
+  return webPlayer.classList.contains("hidden") ? webAudioPlayer : webPlayer;
 }
 function playMedia(encodedName, isAudio) {
   const url = `${apiBaseUrl}/api/play/${encodedName}`;
   const name = decodeURIComponent(encodedName);
+  currentPlayerUrl = url;
+  currentPlayerFileName = name;
   nowPlayingTitle.textContent = `NOW PLAYING: ${name}`;
   playerContainer.classList.remove("hidden");
   webPlayer.pause(); webAudioPlayer.pause();
   if (isAudio) { webPlayer.classList.add("hidden"); webAudioPlayer.classList.remove("hidden"); webAudioPlayer.src = url; webAudioPlayer.play(); }
   else { webAudioPlayer.classList.add("hidden"); webPlayer.classList.remove("hidden"); webPlayer.src = url; webPlayer.play(); }
+  const active = getActiveMediaElement();
+  active.playbackRate = playerRates[playerRateIndex];
+  if (btnPlayerSpeed) btnPlayerSpeed.textContent = `${playerRates[playerRateIndex].toFixed(2)}x`;
+  if (btnPlayerLoop) btnPlayerLoop.textContent = `LOOP:${active.loop ? "ON" : "OFF"}`;
+  if (btnPlayerMute) btnPlayerMute.textContent = active.muted ? "UNMUTE" : "MUTE";
+  if (playerVolume) playerVolume.value = String(active.volume ?? 1);
   playerContainer.scrollIntoView({ behavior: 'smooth' });
 }
 function closePlayer() {
   webPlayer.pause(); webPlayer.removeAttribute("src");
   webAudioPlayer.pause(); webAudioPlayer.removeAttribute("src");
   playerContainer.classList.add("hidden");
+  currentPlayerUrl = "";
+  currentPlayerFileName = "";
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────
