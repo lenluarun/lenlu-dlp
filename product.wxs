@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="LENLU DLP" Language="1033" Version="1.0.0.0" Manufacturer="Lenlu" UpgradeCode="a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+        <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="LENLU DLP">
+                    <Component Id="MainExecutable" Guid="*">
+                        <File Id="AppEXE" Source="dist\LENLU_DLP.exe" KeyPath="yes" />
+                    < /Component>
+                    <Component Id="DownloadsFolder" Guid="*">
+                        <CreateFolder />
+                    < /Component>
+                < /Directory>
+            < /Directory>
+            <Directory Id="DesktopFolder">
+                <Component Id="DesktopShortcut" Guid="*">
+                    <Shortcut Id="AppShort" Name="LENLU DLP" Target="[INSTALLFOLDER]LENLU_DLP.exe" WorkingDirectory="INSTALLFOLDER" />
+                < /Component>
+            < /Directory>
+        < /Directory>
+        <Feature Id="ProductFeature" Title="LENLU DLP" Level="1">
+            <ComponentRef Id="MainExecutable" />
+            <ComponentRef Id="DownloadsFolder" />
+            <ComponentRef Id="DesktopShortcut" />
+        < /Feature>
+    < /Product>
+< /Wix>
