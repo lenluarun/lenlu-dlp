@@ -1,0 +1,2555 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENLU DLP — Media downloader for developers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────────────────── */
+    :root {
+      --black: #000000;
+      --bg-0: #050505;
+      --bg-1: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #242424;
+      --border: rgba(255,255,255,0.07);
+      --border-h: rgba(255,255,255,0.14);
+      --border-g: rgba(0,230,118,0.25);
+      --green: #00e676;
+      --green-d: #00b85a;
+      --green-b: #00ff88;
+      --green-g: rgba(0,230,118,0.15);
+      --green-s: rgba(0,230,118,0.07);
+      --white: #ffffff;
+      --gray-1: #e8e8e8;
+      --gray-2: #999999;
+      --gray-3: #555555;
+      --gray-4: #2e2e2e;
+      --sans: 'Syne', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 16px;
+      --r-xl: 24px;
+      --shadow-green: 0 0 40px rgba(0,230,118,0.12), 0 0 80px rgba(0,230,118,0.06);
+    }
+
+    /* ─── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { color-scheme: dark; }
+    body {
+      background: var(--black);
+      color: var(--gray-1);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.65;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--green); color: var(--black); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-0); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--green); }
+    a { text-decoration: none; color: inherit; }
+    code, pre { font-family: var(--mono); }
+    img { display: block; }
+
+    /* ─── Particle Canvas ───────────────────────────────────────────────── */
+    #particle-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.45;
+    }
+
+    /* ─── Scanline overlay ──────────────────────────────────────────────── */
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+    }
+
+    /* ─── Content wrapper ────────────────────────────────────────────────── */
+    .site-wrap { position: relative; z-index: 2; }
+
+    /* ─── Utilities ──────────────────────────────────────────────────────── */
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+
+    .tag {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--green); background: var(--green-s);
+      border: 1px solid rgba(0,230,118,0.22); padding: 5px 12px;
+      border-radius: 20px;
+    }
+    .tag::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 10px var(--green);
+      display: block; animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      padding: 11px 22px; border-radius: var(--r-sm);
+      cursor: pointer; transition: all .25s ease;
+      border: 1px solid transparent; white-space: nowrap;
+      letter-spacing: .04em;
+    }
+    .btn-primary {
+      background: var(--green); color: var(--black); border-color: var(--green);
+      box-shadow: 0 0 20px rgba(0,230,118,0.25);
+    }
+    .btn-primary:hover {
+      background: #fff; border-color: #fff; transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(255,255,255,0.15);
+    }
+    .btn-ghost {
+      background: transparent; color: var(--gray-2); border-color: var(--border-h);
+    }
+    .btn-ghost:hover {
+      border-color: var(--green); color: var(--green);
+      transform: translateY(-2px);
+    }
+    .btn-lg { padding: 14px 30px; font-size: 13px; }
+
+    .divider { height: 1px; background: var(--border); }
+
+    /* reveal animation */
+    .reveal {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity .8s cubic-bezier(.25,.8,.25,1), transform .8s cubic-bezier(.25,.8,.25,1);
+    }
+    .reveal.visible { opacity:1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: .1s; }
+    .reveal-delay-2 { transition-delay: .2s; }
+    .reveal-delay-3 { transition-delay: .35s; }
+    .reveal-delay-4 { transition-delay: .5s; }
+
+    /* ─── Nav ────────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      height: 64px; display: flex; align-items: center;
+      background: rgba(0,0,0,0.6);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border); transition: background .3s;
+    }
+    nav.scrolled { background: rgba(0,0,0,0.88); }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; max-width: 1160px; margin: 0 auto; padding: 0 28px;
+    }
+    .nav-logo {
+      font-family: var(--mono); font-size: 14px; font-weight: 700;
+      color: var(--white); display: flex; align-items: center; gap: 10px;
+      letter-spacing: .05em;
+    }
+    .nav-logo .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 12px var(--green);
+      animation: blink 2s ease-in-out infinite;
+    }
+    .nav-links { display: flex; align-items: center; gap: 2px; }
+    .nav-links a {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-3);
+      padding: 7px 14px; border-radius: var(--r-sm);
+      transition: color .2s; letter-spacing: .03em; text-transform: uppercase;
+    }
+    .nav-links a:hover { color: var(--gray-1); }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* Mobile burger */
+    .nav-burger {
+      display: none; flex-direction: column; gap: 5px;
+      cursor: pointer; padding: 6px; background: none; border: none;
+    }
+    .nav-burger span {
+      width: 22px; height: 2px; background: var(--gray-2); border-radius: 2px;
+      transition: all .25s;
+    }
+    .nav-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-burger.open span:nth-child(2) { opacity: 0; }
+    .nav-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    .mobile-menu {
+      display: none; position: fixed; top: 64px; inset-inline: 0;
+      background: rgba(0,0,0,0.97);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border); padding: 20px 28px;
+      flex-direction: column; gap: 4px; z-index: 9998;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      font-family: var(--mono); font-size: 13px; color: var(--gray-2);
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+    .mobile-menu a:last-child { border-bottom: none; }
+
+    @media (max-width: 800px) {
+      .nav-links { display: none; }
+      .nav-actions .btn:not(.btn-primary) { display: none; }
+      .nav-burger { display: flex; }
+    }
+
+    /* ─── Hero ───────────────────────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; text-align: center;
+      padding: 110px 28px 90px; position: relative; overflow: hidden;
+    }
+    .hero-glow {
+      position: absolute; width: 900px; height: 900px;
+      background: radial-gradient(circle, rgba(0,230,118,0.09) 0%, transparent 65%);
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      pointer-events: none; animation: glowPulse 8s ease-in-out infinite;
+    }
+    @keyframes glowPulse {
+      0%,100%{opacity:0.7; transform: translate(-50%,-50%) scale(1)}
+      50%{opacity:1; transform: translate(-50%,-50%) scale(1.1)}
+    }
+    .hero-grid {
+      position: absolute; inset: 0; pointer-events: none; opacity: .035;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .hero-corner {
+      position: absolute; width: 120px; height: 120px;
+      border-color: rgba(0,230,118,0.18); border-style: solid;
+      pointer-events: none;
+    }
+    .hero-corner.tl { top: 80px; left: 28px; border-width: 2px 0 0 2px; }
+    .hero-corner.tr { top: 80px; right: 28px; border-width: 2px 2px 0 0; }
+    .hero-corner.bl { bottom: 20px; left: 28px; border-width: 0 0 2px 2px; }
+    .hero-corner.br { bottom: 20px; right: 28px; border-width: 0 2px 2px 0; }
+
+    .hero-tag { margin-bottom: 32px; }
+
+    .hero-eyebrow {
+      font-family: var(--mono); font-size: 11px; color: var(--green);
+      letter-spacing: .15em; text-transform: uppercase;
+      margin-bottom: 18px; opacity: .7;
+    }
+
+    .hero-title {
+      font-size: clamp(32px, 6vw, 84px); font-weight: 800;
+      line-height: 1.04; letter-spacing: -.035em;
+      color: var(--white); margin-bottom: 22px;
+    }
+    .hero-title .accent { color: var(--green); }
+    .hero-title .line2 { display: block; opacity: .5; }
+
+    .hero-subtitle {
+      font-size: clamp(13px, 1.6vw, 17px); color: var(--gray-2);
+      max-width: 560px; line-height: 1.75; margin-bottom: 40px;
+    }
+    .hero-cta {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      justify-content: center; margin-bottom: 72px;
+    }
+    .hero-strip {
+      font-size: 11px; color: var(--gray-3); margin-bottom: 20px;
+      font-family: var(--mono); letter-spacing: .06em;
+    }
+    .hero-platforms {
+      display: flex; align-items: center; gap: 32px;
+      flex-wrap: wrap; justify-content: center; opacity: .35;
+    }
+    .hero-platforms span {
+      font-family: var(--mono); font-size: 11px;
+      letter-spacing: .1em; color: var(--gray-2); text-transform: uppercase;
+    }
+
+    /* Typewriter cursor */
+    .typewriter { border-right: 2px solid var(--green); padding-right: 3px; }
+
+    /* ─── Marquee strip ──────────────────────────────────────────────────── */
+    .marquee-wrap {
+      overflow: hidden; border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); padding: 16px 0;
+      background: var(--bg-0);
+    }
+    .marquee-track {
+      display: flex; gap: 60px; width: max-content;
+      animation: marquee 35s linear infinite;
+    }
+    .marquee-track:hover { animation-play-state: paused; }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .marquee-item {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-4);
+      letter-spacing: .1em; white-space: nowrap;
+      display: flex; align-items: center; gap: 10px; text-transform: uppercase;
+    }
+    .marquee-item i { color: var(--green); font-size: 12px; }
+    .marquee-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--green); opacity: .4; }
+
+    /* ─── Section skeleton ───────────────────────────────────────────────── */
+    section { padding: 104px 0; }
+    .section-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--green); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-label::before {
+      content:''; display:block; width:18px; height:1px; background: var(--green);
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 48px); font-weight: 800;
+      letter-spacing: -.03em; color: var(--white); line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .section-body { font-size: 15px; color: var(--gray-2); max-width: 500px; line-height: 1.75; }
+    .section-header-centered { text-align: center; margin-bottom: 72px; }
+    .section-header-centered .section-label { justify-content: center; }
+    .section-header-centered .section-label::before { display: none; }
+    .section-header-centered .section-body { margin: 0 auto; }
+
+    /* ─── Stats counter strip ────────────────────────────────────────────── */
+    .stats-strip {
+      padding: 0; background: var(--bg-0);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .stats-inner {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      border-left: 1px solid var(--border);
+    }
+    @media (max-width: 680px) {
+      .stats-inner { grid-template-columns: repeat(2,1fr); }
+    }
+    .stat-cell {
+      padding: 36px 28px; border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); text-align: center;
+      transition: background .2s;
+    }
+    .stat-cell:hover { background: var(--bg-1); }
+    .stat-num {
+      font-size: 42px; font-weight: 800; color: var(--white);
+      letter-spacing: -.04em; font-family: var(--mono); line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-num .unit { font-size: 22px; color: var(--green); }
+    .stat-desc { font-size: 12px; color: var(--gray-3); letter-spacing: .03em; }
+
+    /* ─── Feature Grid ───────────────────────────────────────────────────── */
+    .feature-grid {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: var(--r-lg);
+      overflow: hidden;
+    }
+    @media (max-width: 860px) { .feature-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 540px) { .feature-grid { grid-template-columns: 1fr; } }
+    .feature-cell {
+      background: var(--bg-0); padding: 32px 26px;
+      transition: background .2s; position: relative; overflow: hidden;
+    }
+    .feature-cell::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px; background: linear-gradient(90deg, transparent, var(--green), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .feature-cell:hover { background: var(--bg-1); }
+    .feature-cell:hover::after { opacity: 1; }
+    .feature-icon {
+      width: 40px; height: 40px; border-radius: var(--r-sm);
+      background: var(--green-s); border: 1px solid rgba(0,230,118,0.18);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+    }
+    .feature-icon i { color: var(--green); font-size: 15px; }
+    .feature-cell-num {
+      font-family: var(--mono); font-size: 10px; color: var(--gray-4);
+      margin-bottom: 10px; letter-spacing: .1em;
+    }
+    .feature-cell h4 { font-size: 14px; font-weight: 700; color: var(--white); margin-bottom: 8px; }
+    .feature-cell p { font-size: 13px; color: var(--gray-3); line-height: 1.65; }
+
+    /* ─── How It Works ───────────────────────────────────────────────────── */
+    .hiw-steps {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 0; position: relative;
+    }
+    @media (max-width: 760px) {
+      .hiw-steps { grid-template-columns: repeat(2,1fr); }
+    }
+    @media (max-width: 460px) {
+      .hiw-steps { grid-template-columns: 1fr; }
+    }
+    .hiw-step {
+      padding: 36px 24px; border: 1px solid var(--border);
+      border-right: none; position: relative;
+      transition: background .2s;
+    }
+    .hiw-step:last-child { border-right: 1px solid var(--border); }
+    .hiw-step:hover { background: var(--bg-1); }
+    .hiw-step-num {
+      font-family: var(--mono); font-size: 11px; color: var(--green);
+      opacity: .5; letter-spacing: .1em; margin-bottom: 20px;
+    }
+    .hiw-step-icon {
+      font-size: 24px; color: var(--green); margin-bottom: 16px;
+      filter: drop-shadow(0 0 8px rgba(0,230,118,0.4));
+    }
+    .hiw-step h4 { font-size: 15px; font-weight: 700; color: var(--white); margin-bottom: 8px; }
+    .hiw-step p { font-size: 13px; color: var(--gray-3); line-height: 1.65; }
+    .hiw-connector {
+      position: absolute; top: 48px; right: -18px; z-index: 1;
+      font-family: var(--mono); font-size: 18px; color: var(--green); opacity: .3;
+    }
+
+    /* ─── Integrate / code card ──────────────────────────────────────────── */
+    .integrate-section { position: relative; overflow: hidden; }
+    .integrate-bg {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 50%, rgba(0,230,118,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .integrate-inner {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center;
+    }
+    @media (max-width: 860px) { .integrate-inner { grid-template-columns: 1fr; gap: 48px; } }
+
+    .code-card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6), var(--shadow-green);
+    }
+    .code-card-header {
+      background: var(--bg-2); padding: 12px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-dots { display: flex; gap: 7px; }
+    .code-dots span { width: 12px; height: 12px; border-radius: 50%; }
+    .code-dots .d1 { background: #ff5f57; }
+    .code-dots .d2 { background: #ffbd2e; }
+    .code-dots .d3 { background: #28c840; }
+    .code-tab {
+      font-family: var(--mono); font-size: 10px; color: var(--gray-3);
+      background: var(--bg-1); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 4px; letter-spacing: .04em;
+    }
+    .code-body { padding: 22px; overflow-x: auto; }
+    .code-body pre { font-size: 12.5px; line-height: 1.85; }
+    .sy { color: #7dd3fc; } .sf { color: var(--green); }
+    .ss { color: #fda4af; } .sc { color: var(--gray-3); } .sn { color: #fbbf24; }
+
+    /* ─── Split feature ──────────────────────────────────────────────────── */
+    .split-section {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+    }
+    .split-section.reverse { direction: rtl; }
+    .split-section.reverse > * { direction: ltr; }
+    @media (max-width: 860px) {
+      .split-section, .split-section.reverse {
+        grid-template-columns: 1fr; direction: ltr;
+      }
+    }
+    .split-visual {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden;
+      box-shadow: 0 28px 60px rgba(0,0,0,0.5);
+    }
+    .split-visual-header {
+      background: var(--bg-2); padding: 11px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .split-visual-header span { font-family: var(--mono); font-size: 11px; color: var(--gray-3); }
+    .split-visual-body { padding: 22px; }
+
+    /* ─── Themes grid ────────────────────────────────────────────────────── */
+    .themes-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+    @media (max-width: 720px) { .themes-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 460px) { .themes-grid { grid-template-columns: 1fr; } }
+    .theme-pill {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 16px 18px;
+      transition: all .2s; cursor: default;
+    }
+    .theme-pill:hover { border-color: var(--border-h); transform: translateY(-2px); }
+    .theme-pill-info { display: flex; align-items: center; gap: 12px; }
+    .theme-swatch {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.1); flex-shrink: 0;
+    }
+    .theme-pill h4 { font-size: 13px; font-weight: 700; color: var(--white); }
+    .theme-pill p { font-size: 11px; color: var(--gray-3); }
+    .theme-badge {
+      font-family: var(--mono); font-size: 9px; padding: 3px 8px;
+      border-radius: 10px; border: 1px solid; letter-spacing: .06em;
+    }
+
+    /* ─── Live Preview ───────────────────────────────────────────────────── */
+    .preview-card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden;
+      box-shadow: 0 50px 120px rgba(0,0,0,0.8), var(--shadow-green);
+      max-width: 1040px; margin: 0 auto;
+    }
+    .preview-header {
+      background: var(--bg-2); padding: 12px 20px;
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .preview-title {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-3);
+      flex: 1; text-align: center; letter-spacing: .04em;
+    }
+    .preview-url-bar {
+      flex: 1; background: var(--bg-0); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 12px;
+      font-family: var(--mono); font-size: 11px; color: var(--gray-3);
+    }
+    .preview-body { height: 580px; }
+    .preview-body iframe { width: 100%; height: 100%; border: none; display: block; }
+
+    /* ─── Architecture ───────────────────────────────────────────────────── */
+    .arch-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    @media (max-width: 720px) { .arch-grid { grid-template-columns: 1fr; } }
+    .arch-card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 30px;
+      transition: border-color .2s, transform .2s;
+    }
+    .arch-card:hover { border-color: var(--border-g); transform: translateY(-3px); }
+    .arch-card-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 14px; display: flex; align-items: center; gap: 7px;
+    }
+    .arch-card h3 { font-size: 17px; font-weight: 700; color: var(--white); margin-bottom: 10px; }
+    .arch-card p { font-size: 13px; color: var(--gray-3); line-height: 1.65; }
+    .arch-flow { margin-top: 18px; display: flex; flex-direction: column; gap: 0; font-family: var(--mono); font-size: 12px; }
+    .arch-step {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+    }
+    .arch-step:last-child { border-bottom: none; }
+    .arch-step-n {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1px solid var(--green); color: var(--green);
+      font-size: 10px; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .arch-step-t { color: var(--gray-2); }
+    .arch-step-t strong { color: var(--white); display: block; font-weight: 600; }
+
+    /* ─── Installation ───────────────────────────────────────────────────── */
+    .install-grid {
+      display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: start;
+    }
+    @media (max-width: 860px) { .install-grid { grid-template-columns: 1fr; } }
+    .install-tabs { display: flex; gap: 4px; margin-bottom: 0; }
+    .install-tab {
+      font-family: var(--mono); font-size: 11px; padding: 7px 16px;
+      border-radius: var(--r-sm) var(--r-sm) 0 0;
+      border: 1px solid var(--border); border-bottom: none;
+      background: var(--bg-1); color: var(--gray-3); cursor: pointer;
+      transition: all .15s; letter-spacing: .04em;
+    }
+    .install-tab.active { background: var(--bg-2); color: var(--green); border-color: var(--border-g); }
+    .install-pane {
+      display: none; background: var(--bg-2);
+      border: 1px solid var(--border-g); border-radius: 0 var(--r-md) var(--r-md) var(--r-md);
+      overflow: hidden; position: relative;
+    }
+    .install-pane.active { display: block; }
+    .install-pane-head {
+      background: var(--bg-3); padding: 9px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .install-pane-head span { font-family: var(--mono); font-size: 11px; color: var(--gray-3); flex: 1; }
+    .copy-code-btn {
+      font-family: var(--mono); font-size: 10px; color: var(--gray-3);
+      background: var(--bg-2); border: 1px solid var(--border);
+      padding: 4px 12px; border-radius: 4px; cursor: pointer; transition: all .2s;
+    }
+    .copy-code-btn:hover { color: var(--green); border-color: var(--green); }
+    .install-pane pre { padding: 22px; font-size: 12.5px; line-height: 2; overflow-x: auto; }
+    .cmd-p { color: var(--green); -webkit-user-select: none; user-select: none; margin-right: 10px; }
+    .cmd-t { color: var(--gray-1); }
+    .cmd-c { color: var(--gray-4); font-style: italic; }
+    .cmd-kw { color: #7dd3fc; }
+    .install-note {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 20px 24px; margin-top: 24px;
+    }
+    .install-note-title { font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 9px; font-weight: 700; letter-spacing: .06em; }
+    .install-note p { font-size: 13px; color: var(--gray-3); line-height: 1.7; }
+    .install-note code { background: var(--bg-2); padding: 2px 6px; border-radius: 3px; font-size: 12px; color: var(--gray-1); }
+    .install-side { display: flex; flex-direction: column; gap: 14px; }
+    .side-card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 18px 20px;
+      display: flex; gap: 14px; align-items: flex-start;
+      transition: all .2s;
+    }
+    .side-card:hover { border-color: var(--border-h); transform: translateX(4px); }
+    .side-card-icon {
+      width: 34px; height: 34px; border-radius: var(--r-sm);
+      background: var(--green-s); border: 1px solid rgba(0,230,118,0.2);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .side-card-icon i { color: var(--green); font-size: 14px; }
+    .side-card h4 { font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+    .side-card p { font-size: 12px; color: var(--gray-3); line-height: 1.55; }
+
+    /* ─── CLI Commands ───────────────────────────────────────────────────── */
+    .cmd-wrap {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden;
+    }
+    .cmd-table { width: 100%; border-collapse: collapse; font-family: var(--mono); }
+    .cmd-table th {
+      text-align: left; padding: 12px 20px;
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--gray-3); border-bottom: 1px solid var(--border);
+      background: var(--bg-2);
+    }
+    .cmd-table td {
+      padding: 13px 20px; font-size: 12.5px;
+      border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    .cmd-table tr:last-child td { border-bottom: none; }
+    .cmd-table tr:hover td { background: var(--bg-1); }
+    .cmd-name { color: var(--green); font-weight: 600; }
+    .cmd-desc { color: var(--gray-3); font-family: var(--sans); font-size: 13px; }
+
+    /* ─── CTA ────────────────────────────────────────────────────────────── */
+    .cta-section {
+      padding: 130px 0; text-align: center;
+      position: relative; overflow: hidden;
+      border-top: 1px solid var(--border);
+    }
+    .cta-section::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,230,118,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-title {
+      font-size: clamp(34px, 5vw, 62px); font-weight: 800;
+      letter-spacing: -.035em; color: var(--white); line-height: 1.08;
+      margin-bottom: 18px;
+    }
+    .cta-sub { font-size: 16px; color: var(--gray-3); margin-bottom: 44px; line-height: 1.75; }
+    .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+    /* ─── Wordmark ───────────────────────────────────────────────────────── */
+    .wordmark-section {
+      padding: 48px 0; text-align: center; overflow: hidden;
+      border-top: 1px solid var(--border); background: var(--bg-0);
+    }
+    .wordmark {
+      font-family: var(--mono); font-size: clamp(60px, 12vw, 160px);
+      font-weight: 800; letter-spacing: -.04em;
+      color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.06);
+      -webkit-user-select: none; user-select: none; line-height: 1;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 60px 0 40px;
+      background: var(--bg-0);
+    }
+    .footer-inner {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px; margin-bottom: 48px;
+    }
+    @media (max-width: 860px) { .footer-inner { grid-template-columns: 1fr 1fr; gap: 36px; } }
+    @media (max-width: 540px) { .footer-inner { grid-template-columns: 1fr; } }
+    .footer-brand-logo {
+      font-family: var(--mono); font-size: 14px; font-weight: 700;
+      color: var(--white); display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px; letter-spacing: .05em;
+    }
+    .footer-brand p { font-size: 13px; color: var(--gray-3); line-height: 1.65; max-width: 280px; }
+    .footer-col h5 {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--gray-3);
+      margin-bottom: 14px; font-weight: 700;
+    }
+    .footer-col a {
+      display: block; font-size: 13px; color: var(--gray-3);
+      padding: 4px 0; transition: color .2s;
+    }
+    .footer-col a:hover { color: var(--green); }
+    .footer-bottom {
+      padding-top: 28px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+    .footer-bottom p { font-size: 12px; color: var(--gray-3); }
+    .footer-meta { margin-top: 6px; font-family: var(--mono); }
+    .author-name { color: var(--white); }
+    .email-link { color: var(--green); }
+    .link-green { color: var(--green); }
+    .kbd-help { font-family: var(--mono); color: var(--green); }
+    .brand-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); display:inline-block; margin-right:8px; }
+    .footer-socials { display: flex; gap: 12px; }
+    .footer-socials a {
+      width: 36px; height: 36px; border-radius: var(--r-sm);
+      border: 1px solid var(--border); display: flex; align-items: center;
+      justify-content: center; color: var(--gray-3); font-size: 15px;
+      transition: all .2s;
+    }
+    .footer-socials a:hover { border-color: var(--green); color: var(--green); }
+
+    /* ─── Back to top ────────────────────────────────────────────────────── */
+    .back-top {
+      position: fixed; bottom: 28px; right: 28px; z-index: 999;
+      width: 44px; height: 44px; border-radius: var(--r-sm);
+      background: var(--bg-2); border: 1px solid var(--border);
+      color: var(--gray-2); font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all .25s;
+      opacity: 0; pointer-events: none;
+    }
+    .back-top.show { opacity: 1; pointer-events: all; }
+    .back-top:hover { background: var(--green); color: var(--black); border-color: var(--green); transform: translateY(-3px); }
+
+    /* ─── Misc visual elements ───────────────────────────────────────────── */
+    .green-text { color: var(--green); }
+    .mono-text { font-family: var(--mono); }
+    .inline-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 10px;
+      background: var(--green-s); border: 1px solid rgba(0,230,118,0.2);
+      color: var(--green); padding: 2px 8px; border-radius: 4px;
+    }
+    .progress-demo {
+      background: var(--bg-0); border: 1px solid var(--border);
+      border-radius: 4px; height: 6px; overflow: hidden; margin: 8px 0;
+    }
+    .progress-demo-bar {
+      height: 100%; background: linear-gradient(90deg, var(--green-d), var(--green));
+      box-shadow: 0 0 8px var(--green); border-radius: 4px;
+    }
+    .stream-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-size: 12px; font-family: var(--mono);
+    }
+    .stream-row:last-child { border-bottom: none; }
+    .stream-row .quality { color: var(--green); }
+    .stream-row .info { color: var(--gray-3); }
+    .stream-row .size { color: var(--gray-2); }
+
+    /* ─── Responsive adjustments ─────────────────────────────────────────── */
+    @media (max-width: 540px) {
+      section { padding: 72px 0; }
+      .hero { padding: 90px 20px 70px; }
+      .hero-corner { display: none; }
+      .container { padding: 0 20px; }
+      .hiw-connector { display: none; }
+    }
+
+    /* ─── Format Matrix ──────────────────────────────────────────────────── */
+    .fmt-filter-bar {
+      display: flex; gap: 8px; margin-bottom: 36px;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .fmt-filter-btn {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      padding: 8px 18px; border-radius: 20px;
+      border: 1px solid var(--border-h);
+      background: transparent; color: var(--gray-3);
+      cursor: pointer; transition: all .2s; letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .fmt-filter-btn:hover { border-color: var(--green); color: var(--green); }
+    .fmt-filter-btn.active {
+      background: var(--green); color: var(--black);
+      border-color: var(--green);
+      box-shadow: 0 0 16px rgba(0,230,118,0.35);
+    }
+    .fmt-matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 600px) { .fmt-matrix-grid { grid-template-columns: 1fr 1fr; gap: 10px; } }
+    @media (max-width: 420px) { .fmt-matrix-grid { grid-template-columns: 1fr; } }
+    .fmt-card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 18px 16px;
+      cursor: pointer; transition: all .22s ease;
+      position: relative; overflow: hidden;
+    }
+    .fmt-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px; opacity: 0; transition: opacity .25s;
+    }
+    .fmt-card.type-video::before { background: linear-gradient(90deg, transparent, #00e676, transparent); }
+    .fmt-card.type-audio::before { background: linear-gradient(90deg, transparent, #7dd3fc, transparent); }
+    .fmt-card.type-combined::before { background: linear-gradient(90deg, transparent, #fbbf24, transparent); }
+    .fmt-card:hover { border-color: var(--border-g); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+    .fmt-card:hover::before { opacity: 1; }
+    .fmt-card-top {
+      display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;
+    }
+    .fmt-card-id {
+      font-family: var(--mono); font-size: 20px; font-weight: 800;
+      color: var(--white); letter-spacing: -.04em; line-height: 1;
+    }
+    .fmt-card-type {
+      font-family: var(--mono); font-size: 9px; font-weight: 700;
+      padding: 3px 9px; border-radius: 10px; letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .fmt-card-type.video { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid rgba(0,230,118,0.25); }
+    .fmt-card-type.audio { background: rgba(125,211,252,0.1); color: #7dd3fc; border: 1px solid rgba(125,211,252,0.25); }
+    .fmt-card-type.combined { background: rgba(251,191,36,0.1); color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
+    .fmt-card-ext {
+      font-family: var(--mono); font-size: 13px; font-weight: 700;
+      color: var(--green); margin-bottom: 4px; text-transform: uppercase;
+    }
+    .fmt-card-res {
+      font-family: var(--mono); font-size: 12px; color: var(--gray-2); margin-bottom: 10px;
+    }
+    .fmt-card-meta {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .fmt-meta-pill {
+      font-family: var(--mono); font-size: 9px; padding: 2px 7px;
+      border-radius: 4px; background: var(--bg-3);
+      color: var(--gray-3); letter-spacing: .04em;
+    }
+    .fmt-card-size {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-2);
+      margin-top: 10px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .fmt-card-size .size-val { color: var(--white); font-weight: 700; }
+    .fmt-card-click-hint {
+      font-family: var(--mono); font-size: 9px; color: var(--gray-4);
+      letter-spacing: .06em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .fmt-card.hidden { display: none; }
+
+    /* ─── Format Modal ───────────────────────────────────────────────────── */
+    .fmt-modal-overlay {
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(0,0,0,0.85);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s ease;
+    }
+    .fmt-modal-overlay.open { opacity: 1; pointer-events: all; }
+    .fmt-modal {
+      background: var(--bg-1); border: 1px solid var(--border-g);
+      border-radius: var(--r-xl); max-width: 700px; width: 100%;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 60px 120px rgba(0,0,0,0.8), 0 0 60px rgba(0,230,118,0.1);
+      transform: translateY(24px) scale(0.97);
+      transition: transform .3s cubic-bezier(.25,.8,.25,1);
+    }
+    .fmt-modal-overlay.open .fmt-modal { transform: translateY(0) scale(1); }
+    .fmt-modal-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 28px 28px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-2);
+      border-radius: var(--r-xl) var(--r-xl) 0 0;
+    }
+    .fmt-modal-id-block { display: flex; flex-direction: column; gap: 6px; }
+    .fmt-modal-id {
+      font-family: var(--mono); font-size: 36px; font-weight: 800;
+      color: var(--white); letter-spacing: -.04em; line-height: 1;
+    }
+    .fmt-modal-name {
+      font-family: var(--sans); font-size: 14px; color: var(--gray-2);
+    }
+    .fmt-modal-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .fmt-modal-close {
+      width: 36px; height: 36px; border-radius: var(--r-sm);
+      background: var(--bg-3); border: 1px solid var(--border);
+      color: var(--gray-3); font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all .2s; flex-shrink: 0;
+    }
+    .fmt-modal-close:hover { background: #ff5f57; color: #fff; border-color: #ff5f57; }
+    .fmt-modal-body { padding: 28px; }
+    .fmt-spec-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px; margin-bottom: 24px;
+    }
+    @media (max-width: 520px) { .fmt-spec-grid { grid-template-columns: 1fr; } }
+    .fmt-spec-cell {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 16px 18px;
+    }
+    .fmt-spec-label {
+      font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--gray-3); margin-bottom: 6px;
+    }
+    .fmt-spec-val {
+      font-family: var(--mono); font-size: 17px; font-weight: 700;
+      color: var(--white); line-height: 1.2;
+    }
+    .fmt-spec-val.green { color: var(--green); }
+    .fmt-spec-val.blue { color: #7dd3fc; }
+    .fmt-spec-val.yellow { color: #fbbf24; }
+    .fmt-desc-block {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 18px 20px;
+      margin-bottom: 24px;
+    }
+    .fmt-desc-title {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--green); margin-bottom: 10px;
+    }
+    .fmt-desc-text {
+      font-size: 13px; color: var(--gray-2); line-height: 1.75;
+    }
+    .fmt-compat-block {
+      margin-bottom: 24px;
+    }
+    .fmt-compat-title {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--gray-3); margin-bottom: 12px;
+    }
+    .fmt-compat-grid {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .fmt-compat-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px;
+      background: var(--bg-2); border: 1px solid var(--border);
+      padding: 5px 12px; border-radius: 20px; color: var(--gray-2);
+    }
+    .fmt-compat-pill i { font-size: 13px; }
+    .fmt-compat-pill.ok { border-color: rgba(0,230,118,0.3); color: var(--green); }
+    .fmt-compat-pill.warn { border-color: rgba(251,191,36,0.3); color: #fbbf24; }
+    .fmt-modal-actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .fmt-dl-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
+      font-family: var(--mono); font-size: 13px; font-weight: 700;
+      padding: 14px 24px; border-radius: var(--r-md);
+      background: var(--green); color: var(--black);
+      border: 1px solid var(--green);
+      cursor: pointer; transition: all .22s; letter-spacing: .04em;
+      text-decoration: none;
+    }
+    .fmt-dl-btn:hover {
+      background: #fff; border-color: #fff;
+      box-shadow: 0 8px 32px rgba(255,255,255,0.15);
+      transform: translateY(-2px);
+    }
+    .fmt-launch-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      padding: 14px 20px; border-radius: var(--r-md);
+      background: transparent; color: var(--gray-2);
+      border: 1px solid var(--border-h);
+      cursor: pointer; transition: all .22s; letter-spacing: .04em;
+      text-decoration: none; white-space: nowrap;
+    }
+    .fmt-launch-btn:hover { border-color: var(--green); color: var(--green); transform: translateY(-2px); }
+    .fmt-matrix-count {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-3);
+      margin-bottom: 24px; letter-spacing: .04em;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .fmt-matrix-count .count-num { color: var(--green); font-weight: 700; font-size: 13px; }
+
+    /* ─── Request Source Code Section ───────────────────────────────────────── */
+    .request-source-section { padding: 104px 0; background: var(--bg-0); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .request-form-card {
+      background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--r-lg);
+      padding: 40px 36px; max-width: 700px; margin: 0 auto; box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+    }
+    .request-form-card .form-group { margin-bottom: 20px; }
+    .request-form-card label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--green); margin-bottom: 8px; display: block; font-weight: 700;
+    }
+    .request-form-card input, .request-form-card textarea {
+      width: 100%; background: var(--bg-2); border: 1px solid var(--border);
+      color: var(--white); font-family: var(--mono); font-size: 13px;
+      padding: 10px 14px; border-radius: var(--r-sm); outline: none;
+      transition: border-color .2s;
+    }
+    .request-form-card input:focus, .request-form-card textarea:focus { border-color: var(--green); }
+    .request-form-card textarea { resize: vertical; min-height: 90px; font-family: var(--mono); }
+    .term-radio-group { display: flex; gap: 16px; flex-wrap: wrap; }
+    .term-radio {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      font-family: var(--mono); font-size: 13px; color: var(--gray-2);
+    }
+    .term-radio input { width: auto; margin: 0; }
+    .term-radio span { user-select: none; }
+    .form-actions { display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+    .form-actions .btn { flex: 1; min-width: 140px; }
+    @media (max-width: 540px) {
+      .request-form-card { padding: 28px 20px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .form-actions .btn { min-width: unset; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="particle-canvas"></canvas>
+<div class="scanlines"></div>
+
+<div class="site-wrap">
+
+<!-- ═══ NAV ══════════════════════════════════════════════════════════════ -->
+<nav id="main-nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <span class="dot"></span> LENLU&nbsp;DLP
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#formats">Formats</a>
+      <a href="#preview">Live App</a>
+      <a href="#installation">Install</a>
+      <a href="#commands">Commands</a>
+    </div>
+    <div class="nav-actions">
+      <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener" class="btn btn-ghost"><i class="fa-brands fa-github"></i> GitHub</a>
+      <a href="local_host.html" class="btn btn-primary"><i class="fa-solid fa-circle-play"></i> Launch App</a>
+      <button class="nav-burger" id="burger" aria-label="menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobile-menu">
+  <a href="#features">Features</a>
+  <a href="#how-it-works">How It Works</a>
+  <a href="#formats">Formats</a>
+  <a href="#preview">Live App</a>
+  <a href="#installation">Install</a>
+  <a href="#commands">Commands</a>
+  <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener">GitHub</a>
+</div>
+
+<!-- ═══ HERO ══════════════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-corner tl"></div>
+  <div class="hero-corner tr"></div>
+  <div class="hero-corner bl"></div>
+  <div class="hero-corner br"></div>
+
+  <div>
+    <div class="hero-tag reveal">
+      <span class="tag">v2.0 — Free &amp; Open Source</span>
+    </div>
+    <p class="hero-eyebrow reveal reveal-delay-1">Terminal-native media downloader</p>
+    <h1 class="hero-title reveal reveal-delay-1">
+      Download anything,<br/><span class="accent">at terminal speed.</span>
+      <span class="line2">Built for developers.</span>
+    </h1>
+    <p class="hero-subtitle reveal reveal-delay-2">
+      LENLU DLP wraps the power of <strong>yt-dlp</strong> in a blazing-fast retro terminal GUI. Fetch, inspect streams, and download media in seconds — no command memorization required.
+    </p>
+    <div class="hero-cta reveal reveal-delay-2">
+      <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe" class="btn btn-primary btn-lg"><i class="fa-solid fa-download"></i> Download Setup.exe</a>
+      <a href="#request-source" class="btn btn-ghost btn-lg"><i class="fa-regular fa-envelope"></i> Request Source Code</a>
+    </div>
+    <p class="hero-strip reveal reveal-delay-3">Compatible with — </p>
+    <div class="hero-platforms reveal reveal-delay-3">
+      <span><i class="fa-brands fa-windows"></i>&nbsp; Windows</span>
+      <span><i class="fa-brands fa-apple"></i>&nbsp; macOS</span>
+      <span><i class="fa-brands fa-linux"></i>&nbsp; Linux</span>
+      <span><i class="fa-brands fa-youtube"></i>&nbsp; YouTube</span>
+      <span><i class="fa-brands fa-twitter"></i>&nbsp; Twitter/X</span>
+      <span><i class="fa-brands fa-instagram"></i>&nbsp; Instagram</span>
+      <span>+ 1000 sites</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ MARQUEE ═══════════════════════════════════════════════════════════ -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item"><i class="fa-brands fa-youtube"></i> YouTube HD</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-twitter"></i> Twitter/X</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-instagram"></i> Instagram Reels</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-tiktok"></i> TikTok</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-vimeo"></i> Vimeo</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-music"></i> Audio Extract</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-subtitles"></i> Subtitles</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-microchip"></i> yt-dlp Engine</span><span class="marquee-dot"></span>
+
+    <span class="marquee-item"><i class="fa-solid fa-terminal"></i> CLI Interface</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-python"></i> FastAPI Backend</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-shield-halved"></i> Open Source · MIT</span><span class="marquee-dot"></span>
+    <!-- duplicate for infinite loop -->
+    <span class="marquee-item"><i class="fa-brands fa-youtube"></i> YouTube HD</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-twitter"></i> Twitter/X</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-instagram"></i> Instagram Reels</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-tiktok"></i> TikTok</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-vimeo"></i> Vimeo</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-music"></i> Audio Extract</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-subtitles"></i> Subtitles</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-microchip"></i> yt-dlp Engine</span><span class="marquee-dot"></span>
+
+    <span class="marquee-item"><i class="fa-solid fa-terminal"></i> CLI Interface</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-brands fa-python"></i> FastAPI Backend</span><span class="marquee-dot"></span>
+    <span class="marquee-item"><i class="fa-solid fa-shield-halved"></i> Open Source · MIT</span><span class="marquee-dot"></span>
+  </div>
+</div>
+
+<!-- ═══ STATS ════════════════════════════════════════════════════════════ -->
+<div class="stats-strip">
+  <div class="container">
+    <div class="stats-inner">
+      <div class="stat-cell reveal">
+        <div class="stat-num"><span class="counter" data-target="1000">0</span><span class="unit">+</span></div>
+        <div class="stat-desc">Supported Sites</div>
+      </div>
+      <div class="stat-cell reveal reveal-delay-1">
+        <div class="stat-num"><span class="counter" data-target="8">0</span><span class="unit">K+</span></div>
+        <div class="stat-desc">yt-dlp Stars</div>
+      </div>
+      <div class="stat-cell reveal reveal-delay-2">
+        <div class="stat-num"><span class="counter" data-target="6">0</span><span class="unit"> themes</span></div>
+        <div class="stat-desc">Terminal Themes</div>
+      </div>
+      <div class="stat-cell reveal reveal-delay-3">
+        <div class="stat-num"><span>MIT</span></div>
+        <div class="stat-desc">License — Free Forever</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FEATURES ════════════════════════════════════════════════════════ -->
+<section id="features">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Core Features</p>
+      <h2 class="section-title reveal">Everything you need. Nothing you don't.</h2>
+      <p class="section-body reveal">LENLU DLP is packed with powerful features for developers and power users — without the bloat.</p>
+    </div>
+    <div class="feature-grid reveal">
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
+        <div class="feature-cell-num">// 01</div>
+        <h4>Local Engine</h4>
+        <p>Powered by Python FastAPI + yt-dlp for direct local downloads, stream merging, audio conversion, and subtitle embedding.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-sliders"></i></div>
+        <div class="feature-cell-num">// 02</div>
+        <h4>Format Matrix Inspector</h4>
+        <p>Inspect every available stream — codec, resolution, size, FPS — in an interactive filterable table.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-music"></i></div>
+        <div class="feature-cell-num">// 03</div>
+        <h4>Audio Extraction</h4>
+        <p>Extract audio as MP3, M4A, WAV or FLAC. Lossless and lossy formats supported natively.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-closed-captioning"></i></div>
+        <div class="feature-cell-num">// 04</div>
+        <h4>Subtitle Support</h4>
+        <p>Download and embed subtitles in multiple languages directly into your video files.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-palette"></i></div>
+        <div class="feature-cell-num">// 05</div>
+        <h4>6 Terminal Themes</h4>
+        <p>Modern Dark, Classic Green, PowerShell Blue, Ubuntu Purple, Matrix Neon, Amber Retro.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-folder-tree"></i></div>
+        <div class="feature-cell-num">// 06</div>
+        <h4>Local Library Browser</h4>
+        <p>Browse and manage your downloaded files directly inside the app with file-type previews.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-layer-group"></i></div>
+        <div class="feature-cell-num">// 07</div>
+        <h4>Batch Downloads</h4>
+        <p>Queue multiple URLs simultaneously with per-item progress tracking and error recovery.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
+        <div class="feature-cell-num">// 08</div>
+        <h4>Stats Dashboard</h4>
+        <p>Session statistics: total downloads, data transferred, success rate, and speed metrics.</p>
+      </div>
+      <div class="feature-cell">
+        <div class="feature-icon"><i class="fa-solid fa-keyboard"></i></div>
+        <div class="feature-cell-num">// 09</div>
+        <h4>Keyboard Shortcuts</h4>
+        <p>Full keyboard navigation with command history cycling, autocomplete, and quick-tab switching.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORKS ════════════════════════════════════════════════════ -->
+<section id="how-it-works">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Process</p>
+      <h2 class="section-title reveal">From URL to file in four steps.</h2>
+      <p class="section-body reveal">LENLU DLP keeps it simple — paste, fetch, pick, download.</p>
+    </div>
+    <div class="hiw-steps reveal">
+      <div class="hiw-step">
+        <div class="hiw-step-num">STEP // 01</div>
+        <div class="hiw-step-icon"><i class="fa-solid fa-link"></i></div>
+        <h4>Paste URL</h4>
+        <p>Drop any media URL or search query in the input. Supports YouTube, Twitter, Instagram, TikTok, and 1000+ sites.</p>
+        <span class="hiw-connector">→</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">STEP // 02</div>
+        <div class="hiw-step-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <h4>Fetch Metadata</h4>
+        <p>LENLU DLP instantly probes the URL and returns the title, thumbnail, duration, and all available streams.</p>
+        <span class="hiw-connector">→</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">STEP // 03</div>
+        <div class="hiw-step-icon"><i class="fa-solid fa-list-check"></i></div>
+        <h4>Pick Format</h4>
+        <p>Browse the format matrix. Choose resolution, codec, file size. Toggle audio extraction or subtitle embedding.</p>
+        <span class="hiw-connector">→</span>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">STEP // 04</div>
+        <div class="hiw-step-icon"><i class="fa-solid fa-circle-down"></i></div>
+        <h4>Execute &amp; Done</h4>
+        <p>Watch the real-time terminal feed as yt-dlp downloads your file. Find it instantly in the local library.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INTEGRATE TONIGHT ════════════════════════════════════════════════ -->
+<section class="integrate-section">
+  <div class="integrate-bg"></div>
+  <div class="container">
+    <div class="integrate-inner">
+      <div>
+        <p class="section-label reveal">Engine</p>
+        <h2 class="section-title reveal">Powered by yt-dlp &amp;<br/><span class="green-text">FastAPI.</span></h2>
+        <p class="section-body reveal">
+          The backend is a slim Python FastAPI server that shells out to yt-dlp for maximum compatibility — local downloads, stream merging, audio conversion, and subtitle embedding.
+        </p>
+        <div class="reveal reveal-delay-1">
+          <span class="inline-badge"><i class="fa-brands fa-python"></i> Python FastAPI</span>
+          <span class="inline-badge"><i class="fa-solid fa-bolt"></i> yt-dlp 2024</span>
+          <span class="inline-badge"><i class="fa-solid fa-wind"></i> WebSocket feed</span>
+        </div>
+        <a href="local_host.html" class="btn btn-primary reveal reveal-delay-2"><i class="fa-solid fa-circle-play"></i> Try Live App</a>
+      </div>
+      <div class="code-card reveal reveal-delay-1">
+        <div class="code-card-header">
+          <div class="code-dots"><span class="d1"></span><span class="d2"></span><span class="d3"></span></div>
+          <span class="code-tab">run_gui.py</span>
+        </div>
+        <div class="code-body">
+          <pre><span class="sc"># Start the LENLU DLP backend</span>
+<span class="sy">import</span> <span class="sf">subprocess</span><span class="sy">,</span> <span class="sf">webbrowser</span>
+
+<span class="sy">def</span> <span class="sf">main</span>():
+    url <span class="sy">=</span> <span class="ss">"http://127.0.0.1:8000"</span>
+    webbrowser.<span class="sf">open</span>(url)
+
+    <span class="sc"># Spin up FastAPI server</span>
+    subprocess.<span class="sf">run</span>([
+        <span class="ss">"uvicorn"</span><span class="sy">,</span> <span class="ss">"main:app"</span><span class="sy">,</span>
+        <span class="ss">"--host"</span><span class="sy">,</span> <span class="ss">"0.0.0.0"</span><span class="sy">,</span>
+        <span class="ss">"--port"</span><span class="sy">,</span> <span class="ss">"8000"</span>
+    ])
+
+<span class="sy">if</span> __name__ <span class="sy">==</span> <span class="ss">"__main__"</span>:
+    <span class="sf">main</span>()
+
+<span class="sc"># Windows → py run_gui.py</span>
+<span class="sc"># macOS/Linux → python3 run_gui.py</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ LIVE PREVIEW ════════════════════════════════════════════════════ -->
+<section id="preview">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Live Preview</p>
+      <h2 class="section-title reveal">The terminal GUI, right here.</h2>
+      <p class="section-body reveal">The full app is embedded below. Connect your local server to use the GUI.</p>
+    </div>
+    <div class="preview-card reveal">
+      <div class="preview-header">
+        <div class="code-dots"><span class="d1"></span><span class="d2"></span><span class="d3"></span></div>
+        <div class="preview-url-bar">local_host.html — LENLU DLP Terminal GUI</div>
+        <a href="https://github.com/lenluarun/lenlu-dlp/blob/main/app/gui/local_host.html" target="_blank" rel="noopener" class="btn btn-ghost preview-expand"><i class="fa-solid fa-arrow-up-right-from-square"></i> Expand</a>
+      </div>
+      <div class="preview-body">
+        <iframe src="local_host.html" title="LENLU DLP App" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FORMAT MATRIX ════════════════════════════════════════════════════ -->
+<section id="formats">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Format Matrix</p>
+      <h2 class="section-title reveal">Every stream, fully inspectable.</h2>
+      <p class="section-body reveal">
+        Click any format card to see massive technical details — codec, bitrate, container, compatibility, and more. Hit <strong style="color:var(--green)">Download</strong> to grab it instantly.
+      </p>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="fmt-filter-bar reveal">
+      <button class="fmt-filter-btn active" data-filter="all" onclick="filterFormats('all',this)">All Formats</button>
+      <button class="fmt-filter-btn" data-filter="combined" onclick="filterFormats('combined',this)">Combined (V+A)</button>
+      <button class="fmt-filter-btn" data-filter="video" onclick="filterFormats('video',this)">Video Only</button>
+      <button class="fmt-filter-btn" data-filter="audio" onclick="filterFormats('audio',this)">Audio Only</button>
+      <button class="fmt-filter-btn" data-filter="4k" onclick="filterFormats('4k',this)">4K UHD</button>
+      <button class="fmt-filter-btn" data-filter="1080p" onclick="filterFormats('1080p',this)">1080p FHD</button>
+      <button class="fmt-filter-btn" data-filter="720p" onclick="filterFormats('720p',this)">720p HD</button>
+    </div>
+
+    <div class="fmt-matrix-count reveal">
+      <span class="count-num" id="fmt-count">20</span> formats available &mdash; click to inspect
+    </div>
+
+    <!-- Format cards grid -->
+    <div class="fmt-matrix-grid reveal" id="fmt-grid">
+
+      <!-- VIDEO ONLY -->
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('401')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">401</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">3840 × 2160 &nbsp;·&nbsp; 4K</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AV1</span>
+          <span class="fmt-meta-pill">60fps</span>
+          <span class="fmt-meta-pill">HDR</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">820 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('337')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">337</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">webm</div>
+        <div class="fmt-card-res">3840 × 2160 &nbsp;·&nbsp; 4K</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">VP9</span>
+          <span class="fmt-meta-pill">60fps</span>
+          <span class="fmt-meta-pill">HDR</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">740 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('299')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">299</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">1920 × 1080 &nbsp;·&nbsp; FHD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">60fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">95 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('137')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">137</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">1920 × 1080 &nbsp;·&nbsp; FHD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">82 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('248')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">248</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">webm</div>
+        <div class="fmt-card-res">1280 × 720 &nbsp;·&nbsp; HD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">VP9</span>
+          <span class="fmt-meta-pill">60fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">47 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('136')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">136</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">1280 × 720 &nbsp;·&nbsp; HD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">38 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('135')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">135</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">854 × 480 &nbsp;·&nbsp; SD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">19 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('134')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">134</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">640 × 360 &nbsp;·&nbsp; nHD</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">10 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-video" data-type="video" onclick="openFmtModal('133')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">133</div>
+          <span class="fmt-card-type video">Video</span>
+        </div>
+        <div class="fmt-card-ext">mp4</div>
+        <div class="fmt-card-res">426 × 240 &nbsp;·&nbsp; 240p</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AVC/H.264</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">5 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <!-- AUDIO ONLY -->
+      <div class="fmt-card type-audio" data-type="audio" onclick="openFmtModal('251')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">251</div>
+          <span class="fmt-card-type audio">Audio</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#7dd3fc">webm</div>
+        <div class="fmt-card-res">Opus · 160kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">Opus</span>
+          <span class="fmt-meta-pill">48kHz</span>
+          <span class="fmt-meta-pill">Stereo</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">8.2 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-audio" data-type="audio" onclick="openFmtModal('140')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">140</div>
+          <span class="fmt-card-type audio">Audio</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#7dd3fc">m4a</div>
+        <div class="fmt-card-res">AAC · 128kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AAC-LC</span>
+          <span class="fmt-meta-pill">44.1kHz</span>
+          <span class="fmt-meta-pill">Stereo</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">6.1 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-audio" data-type="audio" onclick="openFmtModal('250')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">250</div>
+          <span class="fmt-card-type audio">Audio</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#7dd3fc">webm</div>
+        <div class="fmt-card-res">Opus · 70kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">Opus</span>
+          <span class="fmt-meta-pill">48kHz</span>
+          <span class="fmt-meta-pill">Stereo</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">3.6 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-audio" data-type="audio" onclick="openFmtModal('249')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">249</div>
+          <span class="fmt-card-type audio">Audio</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#7dd3fc">webm</div>
+        <div class="fmt-card-res">Opus · 50kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">Opus</span>
+          <span class="fmt-meta-pill">48kHz</span>
+          <span class="fmt-meta-pill">Mono</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">2.5 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <!-- COMBINED AV -->
+      <div class="fmt-card type-combined" data-type="combined" onclick="openFmtModal('bestvideo+bestaudio')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id" style="font-size:13px;line-height:1.3">BEST+BEST</div>
+          <span class="fmt-card-type combined">Combined</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#fbbf24">mkv/mp4</div>
+        <div class="fmt-card-res">Highest Quality Stream</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">Auto-merge</span>
+          <span class="fmt-meta-pill">ffmpeg</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">Auto</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-combined" data-type="combined" onclick="openFmtModal('22')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">22</div>
+          <span class="fmt-card-type combined">Combined</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#fbbf24">mp4</div>
+        <div class="fmt-card-res">1280 × 720 · HD + AAC</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">H.264</span>
+          <span class="fmt-meta-pill">AAC</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">~43 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-combined" data-type="combined" onclick="openFmtModal('18')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id">18</div>
+          <span class="fmt-card-type combined">Combined</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#fbbf24">mp4</div>
+        <div class="fmt-card-res">640 × 360 + AAC</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">H.264</span>
+          <span class="fmt-meta-pill">AAC</span>
+          <span class="fmt-meta-pill">30fps</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">~15 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-combined" data-type="combined" onclick="openFmtModal('mp3')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id" style="font-size:14px">MP3</div>
+          <span class="fmt-card-type combined">Extract</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#fbbf24">mp3</div>
+        <div class="fmt-card-res">Audio Extraction · 320kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">ffmpeg</span>
+          <span class="fmt-meta-pill">CBR</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">~12 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-combined" data-type="combined" onclick="openFmtModal('flac')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id" style="font-size:14px">FLAC</div>
+          <span class="fmt-card-type combined">Extract</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#fbbf24">flac</div>
+        <div class="fmt-card-res">Lossless Audio · 1411kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">ffmpeg</span>
+          <span class="fmt-meta-pill">Lossless</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">~50 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+      <div class="fmt-card type-audio" data-type="audio" onclick="openFmtModal('m4a')">
+        <div class="fmt-card-top">
+          <div class="fmt-card-id" style="font-size:14px">M4A</div>
+          <span class="fmt-card-type audio">Extract</span>
+        </div>
+        <div class="fmt-card-ext" style="color:#7dd3fc">m4a</div>
+        <div class="fmt-card-res">AAC Extract · 256kbps</div>
+        <div class="fmt-card-meta">
+          <span class="fmt-meta-pill">AAC-LC</span>
+          <span class="fmt-meta-pill">ffmpeg</span>
+        </div>
+        <div class="fmt-card-size">
+          <span>Size</span>
+          <span class="size-val">~8 MB</span>
+        </div>
+        <div class="fmt-card-click-hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> Click for details</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FORMAT DETAIL MODAL ═══════════════════════════════════════════════ -->
+<div class="fmt-modal-overlay" id="fmtModalOverlay" onclick="closeFmtModalOutside(event)">
+  <div class="fmt-modal" id="fmtModal">
+    <div class="fmt-modal-header">
+      <div class="fmt-modal-id-block">
+        <div class="fmt-modal-id" id="fmtModalId">299</div>
+        <div class="fmt-modal-name" id="fmtModalName">Loading...</div>
+        <div class="fmt-modal-badges" id="fmtModalBadges"></div>
+      </div>
+      <button class="fmt-modal-close" onclick="closeFmtModal()" title="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="fmt-modal-body">
+      <div class="fmt-spec-grid" id="fmtSpecGrid"></div>
+      <div class="fmt-desc-block">
+        <div class="fmt-desc-title">// Description</div>
+        <div class="fmt-desc-text" id="fmtModalDesc"></div>
+      </div>
+      <div class="fmt-compat-block">
+        <div class="fmt-compat-title">// Platform Compatibility</div>
+        <div class="fmt-compat-grid" id="fmtModalCompat"></div>
+      </div>
+      <div class="fmt-modal-actions">
+        <a href="local_host.html" class="fmt-dl-btn" id="fmtDlBtn">
+          <i class="fa-solid fa-circle-down"></i> Download This Format
+        </a>
+        <a href="local_host.html" class="fmt-launch-btn">
+          <i class="fa-solid fa-terminal"></i> Open in App
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DOWNLOAD IN ACTION ═══════════════════════════════════════════════ -->
+<section>
+  <div class="container">
+    <div class="split-section reverse">
+      <div>
+        <p class="section-label reveal">Terminal Feed</p>
+        <h2 class="section-title reveal">Live output, <span class="green-text">no black box.</span></h2>
+        <p class="section-body reveal">
+          Watch every byte of yt-dlp output in the real-time process console. Know exactly what's happening, every fragment download, every merge step.
+        </p>
+        <div class="reveal reveal-delay-1">
+          <div class="progress-demo"><div class="progress-demo-bar"></div></div>
+          <div class="progress-meta">
+            <span>[download] 72.0% of ~92MB at 3.2MiB/s</span><span class="eta">ETA 0:09</span>
+          </div>
+        </div>
+        <a href="local_host.html" class="btn btn-primary reveal reveal-delay-2"><i class="fa-solid fa-terminal"></i> Open Console</a>
+      </div>
+        <div class="split-visual reveal reveal-delay-1">
+        <div class="split-visual-header">
+          <span class="dot small"></span>
+          <span>process_console — DOWNLOADING</span>
+        </div>
+        <div class="split-visual-body">
+          <div class="process-log">
+            <div><span class="log-system">[system]</span> Spawning yt-dlp process...</div>
+            <div><span class="log-info">[info]</span> lenlu-dlp@system:~# lenlu-dlp -f 299+140</div>
+            <div><span class="log-yt">[yt-dlp]</span> Extracting URL metadata</div>
+            <div><span class="log-yt">[yt-dlp]</span> <span class="log-file">Tutorial.mp4</span></div>
+            <div><span class="log-download">[download]</span> Destination: /downloads/Tutorial.mp4</div>
+            <div><span class="log-download">[download]</span> <span class="log-percent">72.0%</span> of ~92MB at <span class="log-speed">3.2MiB/s</span> ETA <span class="log-eta">0:09</span></div>
+            <div class="process-controls">
+              <span class="log-arrow">▸</span>
+              <span class="log-blink">█</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ THEMES ═══════════════════════════════════════════════════════════ -->
+<section class="themes-section">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Terminal Themes</p>
+      <h2 class="section-title reveal">Your terminal, your style.</h2>
+      <p class="section-body reveal">Six carefully crafted colour themes — switch live, no reload.</p>
+    </div>
+    <div class="themes-grid reveal">
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="modern-dark"></div>
+          <div><h4>Modern Dark</h4><p>VS Code / Windows Terminal</p></div>
+        </div>
+        <span class="theme-badge modern">DEFAULT</span>
+      </div>
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="retro"></div>
+          <div><h4>Classic Green</h4><p>Authentic CRT terminal</p></div>
+        </div>
+        <span class="theme-badge retro">RETRO</span>
+      </div>
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="shell"></div>
+          <div><h4>PowerShell Blue</h4><p>Classic Windows shell</p></div>
+        </div>
+        <span class="theme-badge shell">SHELL</span>
+      </div>
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="linux"></div>
+          <div><h4>Ubuntu Purple</h4><p>Canonical inspired</p></div>
+        </div>
+        <span class="theme-badge linux">LINUX</span>
+      </div>
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="neon"></div>
+          <div><h4>Matrix Neon</h4><p>Deep dive protocol</p></div>
+        </div>
+        <span class="theme-badge neon">NEON</span>
+      </div>
+      <div class="theme-pill">
+        <div class="theme-pill-info">
+          <div class="theme-swatch" data-swatch="amber"></div>
+          <div><h4>Amber Retro</h4><p>Vintage amber phosphor</p></div>
+        </div>
+        <span class="theme-badge amber">AMBER</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ARCHITECTURE ══════════════════════════════════════════════════════ -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Architecture</p>
+      <h2 class="section-title reveal">Local-first. One interface.</h2>
+      <p class="section-body reveal">Run the FastAPI server locally — the same beautiful GUI works everywhere.</p>
+    </div>
+    <div class="arch-grid">
+      <div class="arch-card reveal">
+        <div class="arch-card-label"><i class="fa-solid fa-server"></i> Local Server Mode</div>
+        <h3>Full power via Python backend</h3>
+        <p>Run the FastAPI server locally. Full yt-dlp support: merging streams, audio conversion, subtitle embedding, custom flags.</p>
+        <div class="arch-flow">
+          <div class="arch-step"><div class="arch-step-n">1</div><div class="arch-step-t"><strong>Browser opens local_host.html</strong>Connects to http://127.0.0.1:8000</div></div>
+          <div class="arch-step"><div class="arch-step-n">2</div><div class="arch-step-t"><strong>FastAPI receives API calls</strong>Manages yt-dlp subprocess and SSE stream</div></div>
+          <div class="arch-step"><div class="arch-step-n">3</div><div class="arch-step-t"><strong>yt-dlp downloads media</strong>Files saved to configurable local folder</div></div>
+          <div class="arch-step"><div class="arch-step-n">4</div><div class="arch-step-t"><strong>Library endpoint lists files</strong>UI shows thumbnails and metadata</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INSTALLATION ══════════════════════════════════════════════════════ -->
+<section id="installation">
+  <div class="container">
+    <div class="install-grid">
+      <div>
+        <p class="section-label reveal">Quick Start</p>
+        <h2 class="section-title reveal">Up and running in<br/><span class="green-text">under 60 seconds.</span></h2>
+        <p class="section-body reveal">
+          Clone the repo, install dependencies, and launch. The script handles the rest — server start, browser open, everything.
+        </p>
+        <div class="install-tabs reveal">
+          <button class="install-tab active" onclick="switchInstall('win',this)">Windows</button>
+          <button class="install-tab" onclick="switchInstall('mac',this)">macOS</button>
+          <button class="install-tab" onclick="switchInstall('lin',this)">Linux</button>
+        </div>
+        <div id="pane-win" class="install-pane active reveal">
+          <div class="install-pane-head">
+            <span>PowerShell / cmd</span>
+            <button class="copy-code-btn" onclick="copyInstall('code-win',this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre id="code-win"><span class="cmd-p">$</span><span class="cmd-t">git <span class="cmd-kw">clone</span> https://github.com/lenluarun/lenlu-dlp.git</span>
+<span class="cmd-p">$</span><span class="cmd-t">cd lenlu-dlp</span>
+<span class="cmd-p">$</span><span class="cmd-t">pip install -r requirements.txt</span>
+<span class="cmd-p">$</span><span class="cmd-t">py run_gui.py</span>
+<span class="cmd-c"># Browser opens automatically</span></pre>
+        </div>
+        <div id="pane-mac" class="install-pane">
+          <div class="install-pane-head">
+            <span>Terminal (zsh)</span>
+            <button class="copy-code-btn" onclick="copyInstall('code-mac',this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre id="code-mac"><span class="cmd-p">%</span><span class="cmd-t">git <span class="cmd-kw">clone</span> https://github.com/lenluarun/lenlu-dlp.git</span>
+<span class="cmd-p">%</span><span class="cmd-t">cd lenlu-dlp</span>
+<span class="cmd-p">%</span><span class="cmd-t">pip3 install -r requirements.txt</span>
+<span class="cmd-p">%</span><span class="cmd-t">python3 run_gui.py</span>
+<span class="cmd-c"># Browser opens automatically</span></pre>
+        </div>
+        <div id="pane-lin" class="install-pane">
+          <div class="install-pane-head">
+            <span>Bash</span>
+            <button class="copy-code-btn" onclick="copyInstall('code-lin',this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre id="code-lin"><span class="cmd-p">$</span><span class="cmd-t">git <span class="cmd-kw">clone</span> https://github.com/lenluarun/lenlu-dlp.git</span>
+<span class="cmd-p">$</span><span class="cmd-t">cd lenlu-dlp</span>
+<span class="cmd-p">$</span><span class="cmd-t">pip3 install -r requirements.txt</span>
+<span class="cmd-p">$</span><span class="cmd-t">python3 run_gui.py</span>
+<span class="cmd-c"># Browser opens automatically</span></pre>
+        </div>
+        <div class="install-note reveal reveal-delay-1">
+          <div class="install-note-title">// Prerequisites</div>
+          <p>Requires <code>Python 3.9+</code>, <code>pip</code>, and <code>ffmpeg</code> on your PATH for stream merging and audio conversion. yt-dlp is installed automatically via pip.</p>
+        </div>
+      </div>
+      <div class="install-side">
+        <div class="side-card reveal">
+          <div class="side-card-icon"><i class="fa-solid fa-bolt"></i></div>
+          <div><h4>Auto-launch browser</h4><p>run_gui.py starts the server and opens the app automatically — one command, fully ready.</p></div>
+        </div>
+
+        <div class="side-card reveal reveal-delay-2">
+          <div class="side-card-icon"><i class="fa-brands fa-github"></i></div>
+          <div><h4>Or download the ZIP</h4><p><a href="https://github.com/lenluarun/lenlu-dlp/archive/refs/heads/main.zip" class="link-green">Direct ZIP download</a> — no git required. Unzip and run.</p></div>
+        </div>
+        <div class="side-card reveal reveal-delay-3">
+          <div class="side-card-icon"><i class="fa-solid fa-globe"></i></div>
+          <div><h4>Static-hostable UI</h4><p>Deploy local_host.html to Vercel, Netlify, or GitHub Pages — point it at your local backend via the server URL field.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CLI COMMANDS ══════════════════════════════════════════════════════ -->
+<section id="commands">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">CLI Reference</p>
+      <h2 class="section-title reveal">Console commands.</h2>
+      <p class="section-body reveal">Master the built-in terminal emulator with these commands. Hit <span class="kbd-help">?</span> in-app for the full shortcut overlay.</p>
+    </div>
+    <div class="cmd-wrap reveal">
+      <table class="cmd-table">
+        <thead>
+          <tr><th>Command</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="cmd-name">&gt; status</span></td><td class="cmd-desc">Show connection status and active process details.</td></tr>
+          <tr><td><span class="cmd-name">&gt; clear</span></td><td class="cmd-desc">Purge the output feed buffer in the console tab.</td></tr>
+          <tr><td><span class="cmd-name">&gt; library</span></td><td class="cmd-desc">Switch to and refresh the local downloads media catalog.</td></tr>
+          <tr><td><span class="cmd-name">&gt; select-folder</span></td><td class="cmd-desc">Open the native OS file picker to re-route your download directory.</td></tr>
+          <tr><td><span class="cmd-name">&gt; site-folder</span></td><td class="cmd-desc">Revert download directory to the default project installation path.</td></tr>
+          <tr><td><span class="cmd-name">&gt; fetch</span></td><td class="cmd-desc">Fetch video metadata and available streams for the current URL.</td></tr>
+          <tr><td><span class="cmd-name">&gt; download</span></td><td class="cmd-desc">Start the quick download using the selected preset format.</td></tr>
+          <tr><td><span class="cmd-name">&gt; batch</span></td><td class="cmd-desc">Open the Batch Download tab for queuing multiple URLs.</td></tr>
+          <tr><td><span class="cmd-name">&gt; queue</span></td><td class="cmd-desc">View and manage the active download queue.</td></tr>
+          <tr><td><span class="cmd-name">&gt; stats</span></td><td class="cmd-desc">Open the Stats Dashboard with session download metrics.</td></tr>
+          <tr><td><span class="cmd-name">&gt; settings</span></td><td class="cmd-desc">Open the settings tab directly from the console.</td></tr>
+          <tr><td><span class="cmd-name">&gt; matrix</span></td><td class="cmd-desc">Open the format matrix tab to inspect all available streams.</td></tr>
+          <tr><td><span class="cmd-name">&gt; help formats</span></td><td class="cmd-desc">Display the interactive stream format guide and matrix filter tips.</td></tr>
+          <tr><td><span class="cmd-name">&gt; help download</span></td><td class="cmd-desc">Show quick-download usage tips and preset format guide.</td></tr>
+          <tr><td><span class="cmd-name">&gt; --help</span></td><td class="cmd-desc">Display the full command list with descriptions. Alias: ? key.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA ════════════════════════════════════════════════════════════════ -->
+<section class="cta-section">
+  <div class="container">
+    <div class="reveal"><span class="tag">Free &amp; Open Source — MIT</span></div>
+    <h2 class="cta-title reveal">Media downloading,<br/><span class="green-text">reimagined.</span></h2>
+    <p class="cta-sub reveal">Simple setup. Beautiful terminal interface. Powerful yt-dlp engine. Six themes. Zero cost.</p>
+    <div class="cta-actions reveal reveal-delay-1">
+      <a href="https://github.com/lenluarun/lenlu-dlp/blob/main/app/gui/local_host.html" class="btn btn-primary btn-lg"><i class="fa-solid fa-circle-play"></i> Launch Web App</a>
+      <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe" target="_blank" rel="noopener" class="btn btn-ghost btn-lg"><i class="fa-brands fa-github"></i>Setup file</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ REQUEST SOURCE CODE ═══════════════════════════════════════════════════ -->
+<section id="request-source" class="request-source-section">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Source Code Access</p>
+      <h2 class="section-title reveal">Request the Repository Source</h2>
+      <p class="section-body reveal">
+        The full source code is shared by request. Fill in the details below and we&rsquo;ll prepare the repository link for you.
+      </p>
+    </div>
+
+    <div class="request-form-card reveal">
+      <div class="form-group">
+        <label>PURPOSE_OF_NEED</label>
+        <textarea id="req-purpose" placeholder="e.g. I need the source to customize the downloader, study the code, deploy internally..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>REQUEST_TYPE</label>
+        <div class="term-radio-group">
+          <label class="term-radio"><input type="radio" name="req-type" value="Contribute" checked> <span>I wish to contribute</span></label>
+          <label class="term-radio"><input type="radio" name="req-type" value="Bug Report"> <span>Bug Report</span></label>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>YOUR_NAME</label>
+          <input type="text" id="req-name" placeholder="Your full name">
+        </div>
+        <div class="form-group">
+          <label>YOUR_EMAIL</label>
+          <input type="email" id="req-email" placeholder="you@example.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ADDITIONAL_DETAILS</label>
+        <textarea id="req-details" placeholder="Any extra context (optional)..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-lg" onclick="sendSourceRequest()">
+          <i class="fa-regular fa-envelope"></i> OPEN_MAIL_APP
+        </button>
+        <button class="btn btn-ghost btn-lg" onclick="clearRequestForm()">CLEAR</button>
+      </div>
+      <div id="req-hint" style="margin-top:10px;font-size:11px;color:var(--gray-3);"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ WORDMARK ══════════════════════════════════════════════════════════ -->
+<div class="wordmark-section">
+  <div class="wordmark">LENLU&nbsp;DLP</div>
+</div>
+
+<!-- ═══ FOOTER ════════════════════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="footer-brand-logo">
+          <span class="brand-dot"></span>
+          LENLU DLP
+        </div>
+        <p>The ultimate retro terminal media downloader for developers and power users.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#preview">Live App</a>
+        <a href="#architecture">Architecture</a>
+        <a href="local_host.html">Launch App</a>
+      </div>
+      <div class="footer-col">
+        <h5>Setup</h5>
+        <a href="#installation">Installation</a>
+        <a href="#commands">CLI Commands</a>
+        <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe">Download Setup.exe</a>
+      </div>
+      <div class="footer-col">
+        <h5>Resources</h5>
+        <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener">GitHub Repo</a>
+        <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp Docs</a>
+
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>
+        <p>LENLU DLP &copy; 2026 — MIT License. Built for the modern terminal.</p>
+        <p class="footer-meta">
+          Made by <span class="author-name">Arunesh</span> &bull;
+          <a href="https://instagram.com/lenlu_arun" target="_blank" rel="noopener"><i class="fa-brands fa-instagram"></i> @lenlu_arun</a> &bull;
+          <a href="mailto:lenluarun@gmail.com" class="email-link"><i class="fa-regular fa-envelope"></i> lenluarun@gmail.com</a>
+        </p>
+      </div>
+      <div class="footer-socials">
+        <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener" title="GitHub"><i class="fa-brands fa-github"></i></a>
+        <a href="https://instagram.com/lenlu_arun" target="_blank" rel="noopener" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
+        <a href="mailto:lenluarun@gmail.com" title="Email"><i class="fa-solid fa-envelope"></i></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</div><!-- /site-wrap -->
+
+<!-- Back to top -->
+<button class="back-top" id="back-top" title="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+  <i class="fa-solid fa-chevron-up"></i>
+</button>
+
+<script>
+/* ─── Particle Canvas ─────────────────────────────────── */
+(function(){
+  const canvas = document.getElementById('particle-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+  const N = 70;
+
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  class Particle {
+    constructor(){
+      this.reset();
+    }
+    reset(){
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+      this.vx = (Math.random() - .5) * .4;
+      this.vy = (Math.random() - .5) * .4;
+      this.r = Math.random() * 1.5 + .5;
+      this.alpha = Math.random() * .5 + .15;
+    }
+    update(){
+      this.x += this.vx;
+      this.y += this.vy;
+      if(this.x < 0 || this.x > W) this.vx *= -1;
+      if(this.y < 0 || this.y > H) this.vy *= -1;
+    }
+    draw(){
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(0,230,118,${this.alpha})`;
+      ctx.fill();
+    }
+  }
+
+  for(let i=0;i<N;i++) particles.push(new Particle());
+
+  function drawLines(){
+    for(let i=0;i<N;i++){
+      for(let j=i+1;j<N;j++){
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx*dx+dy*dy);
+        if(d < 130){
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(0,230,118,${(1-d/130)*.08})`;
+          ctx.lineWidth = .6;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{ p.update(); p.draw(); });
+    drawLines();
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+/* ─── Reveal on scroll ─────────────────────────────────── */
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting){ e.target.classList.add('visible'); revealObs.unobserve(e.target); }
+  });
+}, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+/* ─── Counter animation ─────────────────────────────────── */
+const counterObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      const el = e.target;
+      const target = parseInt(el.dataset.target);
+      let current = 0;
+      const step = target / 50;
+      const timer = setInterval(() => {
+        current += step;
+        if(current >= target){ current = target; clearInterval(timer); }
+        el.textContent = Math.floor(current);
+      }, 30);
+      counterObs.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.counter').forEach(el => counterObs.observe(el));
+
+/* ─── Install tabs ─────────────────────────────────────── */
+function switchInstall(id, btn) {
+  document.querySelectorAll('.install-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.install-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pane-' + id).classList.add('active');
+}
+
+/* ─── Copy install code ────────────────────────────────── */
+function copyInstall(codeId, btn) {
+  const el = document.getElementById(codeId);
+  const lines = [...el.querySelectorAll('.cmd-t')].map(s => s.textContent.trim()).filter(Boolean);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+    btn.style.color = 'var(--green)'; btn.style.borderColor = 'var(--green)';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+  });
+}
+
+/* ─── Nav scroll tint ──────────────────────────────────── */
+const nav = document.querySelector('nav');
+const backTop = document.getElementById('back-top');
+window.addEventListener('scroll', () => {
+  if(window.scrollY > 60){ nav.classList.add('scrolled'); }
+  else { nav.classList.remove('scrolled'); }
+  backTop.classList.toggle('show', window.scrollY > 500);
+});
+
+/* ─── Mobile burger ────────────────────────────────────── */
+const burger = document.getElementById('burger');
+const mobileMenu = document.getElementById('mobile-menu');
+burger.addEventListener('click', () => {
+  burger.classList.toggle('open');
+  mobileMenu.classList.toggle('open');
+});
+mobileMenu.querySelectorAll('a').forEach(a => {
+  a.addEventListener('click', () => {
+    burger.classList.remove('open');
+    mobileMenu.classList.remove('open');
+  });
+});
+
+/* ─── Format Matrix ─────────────────────────────────────── */
+const FMT_DATA = {
+  '401': {
+    name: '4K Ultra HD — AV1 · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '3840 × 2160', quality: '4K UHD',
+    codec: 'AV1 (libaom-av1)', fps: '60', bitrate: '~18 Mbps',
+    size: '820 MB', hdr: 'HDR10 / Dolby Vision', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '10-bit',
+    desc: 'The highest quality video stream available — AV1 encoded 4K at 60fps with HDR10 and Dolby Vision support. AV1 is the most efficient codec delivering stunning quality at lower file sizes than H.264 or VP9. Requires FFmpeg to merge with an audio track. Perfect for archiving or re-encoding.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:false}]
+  },
+  '337': {
+    name: '4K Ultra HD — VP9 · Video Only',
+    ext: 'WEBM', container: 'WebM (Matroska)',
+    type: 'video', resolution: '3840 × 2160', quality: '4K UHD',
+    codec: 'VP9 Profile 2', fps: '60', bitrate: '~22 Mbps',
+    size: '740 MB', hdr: 'HDR10', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '10-bit',
+    desc: 'VP9 encoded 4K video stream at 60fps with HDR10. Excellent compression and widely supported across browsers. This WebM container format requires FFmpeg to merge audio. Preferred for web delivery and archiving on Chromium-based platforms.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-desktop', label:'VLC Player', ok:true},{icon:'fa-brands fa-safari', label:'Safari', ok:false}]
+  },
+  '299': {
+    name: '1080p Full HD — H.264 · 60fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '1920 × 1080', quality: 'Full HD (FHD)',
+    codec: 'AVC/H.264 (High Profile)', fps: '60', bitrate: '~8 Mbps',
+    size: '95 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'The gold standard for 1080p high frame rate delivery. H.264 High Profile at 60fps in MP4 container. Universally compatible with virtually every device, browser, and media player. Requires merging with an audio stream (use 251 or 140) via FFmpeg for a complete file.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true}]
+  },
+  '137': {
+    name: '1080p Full HD — H.264 · 30fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '1920 × 1080', quality: 'Full HD (FHD)',
+    codec: 'AVC/H.264 (High Profile)', fps: '30', bitrate: '~5 Mbps',
+    size: '82 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'Standard 1080p at 30fps in H.264 MP4. The most universally compatible format for full HD video. Smaller file size than 60fps variant while retaining sharp detail. Ideal for general-purpose downloads where smooth motion at 60fps is not required.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true}]
+  },
+  '248': {
+    name: '720p HD — VP9 · 60fps · Video Only',
+    ext: 'WEBM', container: 'WebM (Matroska)',
+    type: 'video', resolution: '1280 × 720', quality: 'HD Ready (720p)',
+    codec: 'VP9 Profile 0', fps: '60', bitrate: '~2.5 Mbps',
+    size: '47 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'VP9 720p at 60fps in WebM container. Excellent compression ratio makes this format ideal for bandwidth-constrained situations while still delivering smooth high-frame-rate playback. Requires FFmpeg merge for audio.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true},{icon:'fa-brands fa-safari', label:'Safari', ok:false}]
+  },
+  '136': {
+    name: '720p HD — H.264 · 30fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '1280 × 720', quality: 'HD Ready (720p)',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~1.5 Mbps',
+    size: '38 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'Compact 720p H.264 in MP4. The go-to lightweight format for sharing and streaming. Low file size with solid visual quality. Universally supported across all devices from phones to TVs.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  '135': {
+    name: '480p SD — H.264 · 30fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '854 × 480', quality: 'SD (480p)',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~0.8 Mbps',
+    size: '19 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'Standard definition 480p H.264. Small file, great for previews, archiving low-priority content, or mobile playback on slow connections.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  '134': {
+    name: '360p — H.264 · 30fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '640 × 360', quality: 'Low (360p)',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~0.4 Mbps',
+    size: '10 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: '360p low-resolution video stream. Ideal for quick previews, thumbnail generation, or archiving where storage space is critical.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  '133': {
+    name: '240p — H.264 · 30fps · Video Only',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'video', resolution: '426 × 240', quality: 'Very Low (240p)',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~0.2 Mbps',
+    size: '5 MB', hdr: 'SDR', audioCodec: 'None (video-only)',
+    sampleRate: '—', channels: '—', bitDepth: '8-bit',
+    desc: 'The lowest resolution video stream. Extremely compact — useful for data-limited connections, generating video thumbnails, or rapid content scanning.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  '251': {
+    name: 'Best Audio — Opus · 160kbps · Audio Only',
+    ext: 'WEBM', container: 'WebM (Matroska)',
+    type: 'audio', resolution: 'Audio Only', quality: 'High Quality Audio',
+    codec: 'Opus', fps: '—', bitrate: '160 kbps VBR',
+    size: '8.2 MB', hdr: '—', audioCodec: 'Opus',
+    sampleRate: '48000 Hz', channels: 'Stereo (2.0)', bitDepth: '—',
+    desc: 'The best audio-only stream from YouTube — Opus codec in WebM at 160kbps VBR. Opus is a state-of-the-art lossy codec that beats MP3 and AAC at equivalent bitrates. Perfect for music and podcasts. Use with ffmpeg to convert to MP3/M4A/FLAC.',
+    compat: [{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true},{icon:'fa-solid fa-desktop', label:'VLC Player', ok:true},{icon:'fa-brands fa-safari', label:'Safari', ok:false}]
+  },
+  '140': {
+    name: 'AAC Audio — 128kbps · Audio Only',
+    ext: 'M4A', container: 'MPEG-4 Audio',
+    type: 'audio', resolution: 'Audio Only', quality: 'Standard Quality Audio',
+    codec: 'AAC-LC', fps: '—', bitrate: '128 kbps CBR',
+    size: '6.1 MB', hdr: '—', audioCodec: 'AAC-LC',
+    sampleRate: '44100 Hz', channels: 'Stereo (2.0)', bitDepth: '—',
+    desc: 'Standard AAC audio at 128kbps in M4A container. Highly compatible with all Apple devices, phones, and media players. M4A (AAC) is the native format for iTunes and iOS. Good everyday quality for casual listening. No conversion needed for most devices.',
+    compat: [{icon:'fa-brands fa-apple', label:'iOS / macOS', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-mobile', label:'Android', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true}]
+  },
+  '250': {
+    name: 'Opus Audio — 70kbps · Audio Only',
+    ext: 'WEBM', container: 'WebM (Matroska)',
+    type: 'audio', resolution: 'Audio Only', quality: 'Medium Quality Audio',
+    codec: 'Opus', fps: '—', bitrate: '70 kbps VBR',
+    size: '3.6 MB', hdr: '—', audioCodec: 'Opus',
+    sampleRate: '48000 Hz', channels: 'Stereo (2.0)', bitDepth: '—',
+    desc: 'Medium-quality Opus audio at 70kbps. Opus at 70kbps still sounds remarkably good compared to MP3 at 128kbps due to its modern codec design. Great for speech content, podcasts, or bandwidth-sensitive situations.',
+    compat: [{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true},{icon:'fa-solid fa-desktop', label:'VLC Player', ok:true},{icon:'fa-brands fa-safari', label:'Safari', ok:false}]
+  },
+  '249': {
+    name: 'Opus Audio — 50kbps Mono · Audio Only',
+    ext: 'WEBM', container: 'WebM (Matroska)',
+    type: 'audio', resolution: 'Audio Only', quality: 'Low Quality Audio',
+    codec: 'Opus', fps: '—', bitrate: '50 kbps VBR',
+    size: '2.5 MB', hdr: '—', audioCodec: 'Opus',
+    sampleRate: '48000 Hz', channels: 'Mono (1.0)', bitDepth: '—',
+    desc: 'Low-bitrate mono Opus audio. Extremely small file size — ideal for speech-heavy content like lectures, interviews, or podcasts where stereo is not essential.',
+    compat: [{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-brands fa-firefox-browser', label:'Firefox', ok:true},{icon:'fa-solid fa-desktop', label:'VLC Player', ok:true},{icon:'fa-brands fa-safari', label:'Safari', ok:false}]
+  },
+  'bestvideo+bestaudio': {
+    name: 'Best Video + Best Audio — Auto-Merge',
+    ext: 'MKV/MP4', container: 'Auto (FFmpeg)',
+    type: 'combined', resolution: 'Highest Available', quality: 'Absolute Best',
+    codec: 'Best video codec + Best audio codec', fps: 'Highest Available', bitrate: 'Maximum',
+    size: 'Auto (varies)', hdr: 'HDR if available', audioCodec: 'Opus / AAC',
+    sampleRate: 'Source', channels: 'Source', bitDepth: 'Source',
+    desc: 'The yt-dlp "bestvideo+bestaudio" selector automatically picks the highest quality video stream and the highest quality audio stream, then merges them using FFmpeg. You get the absolute best quality possible for any URL. Requires FFmpeg installed and in PATH. Output container is usually MKV or MP4 depending on codecs.',
+    compat: [{icon:'fa-solid fa-desktop', label:'VLC Player', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:false},{icon:'fa-solid fa-mobile', label:'Mobile', ok:false}]
+  },
+  '22': {
+    name: 'YouTube 720p Pre-Muxed — H.264 + AAC',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'combined', resolution: '1280 × 720', quality: 'HD Ready + Audio',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~2 Mbps',
+    size: '~43 MB', hdr: 'SDR', audioCodec: 'AAC-LC 192kbps',
+    sampleRate: '44100 Hz', channels: 'Stereo (2.0)', bitDepth: '8-bit',
+    desc: 'Format 22 is a pre-muxed 720p MP4 with both H.264 video and AAC audio already combined in a single file — no FFmpeg required. The most universally compatible single-file download. Works on every device, browser, and media player without conversion.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  '18': {
+    name: '360p Pre-Muxed — H.264 + AAC',
+    ext: 'MP4', container: 'MPEG-4 Part 14',
+    type: 'combined', resolution: '640 × 360', quality: 'Standard + Audio',
+    codec: 'AVC/H.264', fps: '30', bitrate: '~0.5 Mbps',
+    size: '~15 MB', hdr: 'SDR', audioCodec: 'AAC-LC 96kbps',
+    sampleRate: '44100 Hz', channels: 'Stereo (2.0)', bitDepth: '8-bit',
+    desc: 'Format 18 is a compact pre-muxed 360p MP4. Both video and audio in one file — no merge needed. The smallest combined AV format available. Perfect for mobile previewing or archiving many videos quickly with minimal storage.',
+    compat: [{icon:'fa-brands fa-youtube', label:'YouTube', ok:true},{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-tv', label:'Smart TV', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true}]
+  },
+  'mp3': {
+    name: 'MP3 Audio Extraction — 320kbps',
+    ext: 'MP3', container: 'MPEG Layer-3',
+    type: 'combined', resolution: 'Audio Only', quality: 'High Quality Audio',
+    codec: 'MP3 (LAME encoder)', fps: '—', bitrate: '320 kbps CBR',
+    size: '~12 MB', hdr: '—', audioCodec: 'MP3',
+    sampleRate: '44100 Hz', channels: 'Stereo (2.0)', bitDepth: '—',
+    desc: 'yt-dlp extracts audio from the best available stream and converts it to MP3 at 320kbps using FFmpeg and the LAME encoder. MP3 is the most universally compatible audio format — works everywhere, from car stereos to smartphones to old media players. Requires FFmpeg.',
+    compat: [{icon:'fa-solid fa-mobile', label:'Mobile', ok:true},{icon:'fa-solid fa-car', label:'Car Stereo', ok:true},{icon:'fa-brands fa-apple', label:'iOS/macOS', ok:true},{icon:'fa-solid fa-headphones', label:'All Players', ok:true}]
+  },
+  'flac': {
+    name: 'FLAC Lossless Audio Extraction',
+    ext: 'FLAC', container: 'Free Lossless Audio Codec',
+    type: 'combined', resolution: 'Audio Only', quality: 'Lossless / Archival',
+    codec: 'FLAC (FFmpeg)', fps: '—', bitrate: '~1411 kbps (lossless)',
+    size: '~50 MB', hdr: '—', audioCodec: 'FLAC',
+    sampleRate: 'Source (up to 96kHz)', channels: 'Source', bitDepth: 'up to 24-bit',
+    desc: 'Extracts audio and converts to FLAC — a completely lossless audio format. Every single bit of audio information is preserved. Ideal for audiophiles, music archiving, or situations where you want to re-encode later without quality loss. File sizes are significantly larger than lossy formats. Requires FFmpeg.',
+    compat: [{icon:'fa-brands fa-apple', label:'iOS/macOS', ok:true},{icon:'fa-solid fa-desktop', label:'VLC / Foobar', ok:true},{icon:'fa-solid fa-headphones', label:'DAPs / Hi-Fi', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome (limited)', ok:false}]
+  },
+  'm4a': {
+    name: 'M4A / AAC Audio Extraction — 256kbps',
+    ext: 'M4A', container: 'MPEG-4 Audio',
+    type: 'audio', resolution: 'Audio Only', quality: 'High Quality Audio',
+    codec: 'AAC-LC (FFmpeg)', fps: '—', bitrate: '256 kbps CBR',
+    size: '~8 MB', hdr: '—', audioCodec: 'AAC-LC',
+    sampleRate: '44100 Hz', channels: 'Stereo (2.0)', bitDepth: '—',
+    desc: 'Extracts and optionally re-encodes audio to M4A (AAC) at 256kbps. AAC at 256kbps is virtually transparent — indistinguishable from the source for most listeners. The preferred format for Apple ecosystem users. Plays natively on all Apple devices without conversion.',
+    compat: [{icon:'fa-brands fa-apple', label:'iOS / macOS', ok:true},{icon:'fa-solid fa-mobile', label:'Android', ok:true},{icon:'fa-brands fa-chrome', label:'Chrome', ok:true},{icon:'fa-solid fa-headphones', label:'All Players', ok:true}]
+  }
+};
+
+function openFmtModal(id) {
+  const d = FMT_DATA[id];
+  if (!d) return;
+  document.getElementById('fmtModalId').textContent = id;
+  document.getElementById('fmtModalName').textContent = d.name;
+
+  const badges = document.getElementById('fmtModalBadges');
+  badges.innerHTML = '';
+  const typeColors = { video:'video', audio:'audio', combined:'combined' };
+  badges.innerHTML = `<span class="fmt-card-type ${typeColors[d.type] || 'video'}">${d.type.toUpperCase()}</span>
+    <span class="fmt-card-type" style="background:rgba(255,255,255,0.06);color:var(--gray-2);border-color:rgba(255,255,255,0.1)">${d.ext}</span>`;
+
+  const specs = [
+    {label:'Resolution', val: d.resolution, color:''},
+    {label:'Container', val: d.container, color:''},
+    {label:'Video Codec', val: d.codec, color:'green'},
+    {label:'FPS', val: d.fps, color:''},
+    {label:'Bitrate', val: d.bitrate, color:''},
+    {label:'File Size', val: d.size, color:'yellow'},
+    {label:'Audio Codec', val: d.audioCodec, color:'blue'},
+    {label:'Sample Rate', val: d.sampleRate, color:''},
+    {label:'Channels', val: d.channels, color:''},
+    {label:'Bit Depth / HDR', val: (d.hdr && d.hdr !== '—') ? d.hdr : d.bitDepth, color:''},
+  ];
+  const grid = document.getElementById('fmtSpecGrid');
+  grid.innerHTML = specs.map(s => `
+    <div class="fmt-spec-cell">
+      <div class="fmt-spec-label">${s.label}</div>
+      <div class="fmt-spec-val ${s.color}">${s.val}</div>
+    </div>`).join('');
+
+  document.getElementById('fmtModalDesc').textContent = d.desc;
+
+  const compat = document.getElementById('fmtModalCompat');
+  compat.innerHTML = d.compat.map(c => `
+    <span class="fmt-compat-pill ${c.ok ? 'ok' : 'warn'}">
+      <i class="${c.icon}"></i> ${c.label}
+      <i class="fa-solid ${c.ok ? 'fa-check' : 'fa-triangle-exclamation'}" style="font-size:10px"></i>
+    </span>`).join('');
+
+  document.getElementById('fmtDlBtn').href = 'local_host.html';
+  document.getElementById('fmtDlBtn').title = `Download format ${id} in LENLU DLP`;
+
+  document.getElementById('fmtModalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFmtModal() {
+  document.getElementById('fmtModalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeFmtModalOutside(e) {
+  if (e.target === document.getElementById('fmtModalOverlay')) closeFmtModal();
+}
+
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeFmtModal(); });
+
+function filterFormats(type, btn) {
+  document.querySelectorAll('.fmt-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  let visible = 0;
+  document.querySelectorAll('.fmt-card').forEach(card => {
+    let match = false;
+    const cType = card.dataset.type;
+    const txt = card.innerText || '';
+    if (type === 'all') match = true;
+    else if (type === 'video') match = (cType === 'video' || cType === 'combined');
+    else if (type === 'audio') match = (cType === 'audio');
+    else if (type === 'combined') match = (cType === 'combined');
+    else if (type === '4k') match = txt.includes('4K') || txt.includes('2160');
+    else if (type === '1080p') match = txt.includes('1080');
+    else if (type === '720p') match = txt.includes('720');
+    else match = (cType === type);
+
+    card.classList.toggle('hidden', !match);
+    if (match) visible++;
+  });
+  document.getElementById('fmt-count').textContent = visible;
+}
+
+function sendSourceRequest() {
+  const purpose = document.getElementById('req-purpose').value.trim();
+  const type = document.querySelector('input[name="req-type"]:checked').value;
+  const name = document.getElementById('req-name').value.trim();
+  const email = document.getElementById('req-email').value.trim();
+  const details = document.getElementById('req-details').value.trim();
+
+  const hint = document.getElementById('req-hint');
+  if (!purpose) { hint.textContent = 'Please fill in the Purpose of Need.'; hint.style.color = 'var(--alert-color)'; return; }
+  if (!name || !email) { hint.textContent = 'Please fill in your Name and Email.'; hint.style.color = 'var(--alert-color)'; return; }
+
+  const subject = encodeURIComponent('[Source Request] ' + type + ' - ' + name);
+  const body = [
+    'Purpose of need: ' + purpose,
+    'Request type: ' + type,
+    'User details:',
+    '  Name: ' + name,
+    '  Email: ' + email,
+    details ? 'Additional details: ' + details : '',
+    '',
+    '---',
+    'Requesting access to the LENLU DLP repository source code.'
+  ].filter(Boolean).join('%0A');
+
+  const mailto = 'mailto:arunesh@lenlu.me?subject=' + subject + '&body=' + body;
+  hint.textContent = 'Opening your mail app...';
+  hint.style.color = 'var(--green)';
+  window.location.href = mailto;
+}
+
+function clearRequestForm() {
+  document.getElementById('req-purpose').value = '';
+  document.getElementById('req-name').value = '';
+  document.getElementById('req-email').value = '';
+  document.getElementById('req-details').value = '';
+  document.querySelector('input[name="req-type"][value="Contribute"]').checked = true;
+  document.getElementById('req-hint').textContent = '';
+}
+</script>
+</body>
+</html>
