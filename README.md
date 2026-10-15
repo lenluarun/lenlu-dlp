@@ -1,15 +1,13 @@
 # 📟 LENLU DLP — Retro Terminal Media Web GUI
 
-> A premium, high-fidelity retro terminal interface for media downloading, supporting hybrid local hosting and serverless operations.
+> A premium, high-fidelity retro terminal interface for media downloading via local hosting.
 
 ---
 
 ## ⚡ Highlights
 
 * **📟 Immersive Retro Aesthetic**: Sleek monospace terminal design styled with custom color schemes (Modern Dark, Classic Green, PowerShell Blue, Ubuntu Purple).
-* **🔄 Dual-Engine Architecture**: 
-  * **Local Server Engine**: Powered by Python's **FastAPI** + **yt-dlp** for direct local filesystem downloads, high-res merging (with ffmpeg), and an integrated local media player.
-  * **Serverless Engine**: Powered by public **Cobalt API** nodes for lightweight direct-to-browser downloading without needing python setup.
+* **🔄 Local Engine**: Powered by Python's **FastAPI** + **yt-dlp** for direct local filesystem downloads, high-res merging (with ffmpeg), and an integrated local media player.
 * **🌐 Deploy Anywhere**: Deploy the static frontend on Vercel or GitHub Pages, and securely link to your local server backend.
 
 ---
@@ -51,7 +49,7 @@ If you prefer to run from source:
 | :--- | :--- |
 | `downloads_dir` | Path where downloaded files are saved. |
 | `theme` | Visual style (`dark`, `green`, `powershell`, `ubuntu`). |
-| `cobalt_url` | Public endpoint for Serverless Mode. |
+
 
 ---
 
