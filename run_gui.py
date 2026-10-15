@@ -67,7 +67,7 @@ except Exception:
     ensure_binaries = None
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_HOST = "127.0.0.1"
+BACKEND_HOST = "0.0.0.0"
 BACKEND_PORT = 8000
 BACKEND_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
 GUI_DIR = os.path.join(CURRENT_DIR, "lenlu_dlp_gui")
@@ -159,7 +159,8 @@ try:
     import yt_dlp
 except Exception as exc:
     yt_dlp = None
-    print(f"[WARNING] yt_dlp import failed: {exc}")
+    log_error(f"CRITICAL: yt_dlp import failed: {exc}")
+    log_info("Please run 'pip install yt-dlp' in your terminal.")
 
 
 class PrivateNetworkMiddleware(BaseHTTPMiddleware):
@@ -343,6 +344,7 @@ def _start_download_job(request_payload: Dict[str, Any], settings: Dict[str, Any
         state.cancel_event.clear()
         state.active_task_id = task_id
         outtmpl = os.path.join(settings["downloads_dir"], "%(title)s.%(ext)s")
+        format_str = str(format_id).strip()
         cmd = [
             sys.executable,
             "-m",
@@ -351,12 +353,26 @@ def _start_download_job(request_payload: Dict[str, Any], settings: Dict[str, Any
             "--no-playlist",
             "--concurrent-fragments",
             "4",
-            "-f",
-            str(format_id),
             "-o",
             outtmpl,
-            url,
         ]
+        if format_str in ("mp3-320", "mp3-256", "mp3-192", "mp3-128", "mp3", "flac", "wav", "m4a", "opus"):
+            audio_type = "mp3" if format_str.startswith("mp3") else format_str
+            cmd.extend(["-x", "--audio-format", audio_type])
+            if "320" in format_str:
+                cmd.extend(["--audio-quality", "320k"])
+            elif "256" in format_str:
+                cmd.extend(["--audio-quality", "256k"])
+            elif "192" in format_str:
+                cmd.extend(["--audio-quality", "192k"])
+            elif "128" in format_str:
+                cmd.extend(["--audio-quality", "128k"])
+            cmd.extend(["-f", "bestaudio/best"])
+        else:
+            cmd.extend(["-f", format_str])
+            if "+" in format_str or format_str.startswith("bestvideo"):
+                cmd.extend(["--merge-output-format", "mp4"])
+        cmd.append(url)
         ratelimit = request_payload.get("ratelimit")
         if ratelimit and ratelimit != "none":
             cmd.extend(["--limit-rate", str(ratelimit)])
@@ -463,8 +479,6 @@ def _get_info_impl(url: str) -> Dict[str, Any]:
             "1",
             "--playlist-end",
             "1",
-            "--extractor-args",
-            "youtube:player_client=android",
             url,
         ]
         if settings.get("proxy"):
@@ -477,36 +491,296 @@ def _get_info_impl(url: str) -> Dict[str, Any]:
             raise HTTPException(status_code=400, detail=(result.stderr or result.stdout or "yt-dlp metadata fetch failed.").strip())
         info = json.loads(result.stdout or "{}")
         raw_formats = info.get("formats") or []
+        if not raw_formats and info.get("entries"):
+            first_entry = (info.get("entries") or [{}])[0] or {}
+            raw_formats = first_entry.get("formats") or []
+            if not info.get("title") or info.get("title") == url:
+                info["title"] = first_entry.get("title") or info.get("title")
+            if not info.get("thumbnail"):
+                info["thumbnail"] = first_entry.get("thumbnail") or ""
+            if not info.get("duration"):
+                info["duration"] = first_entry.get("duration") or 0
+
         formats_list = []
         for item in raw_formats:
-            acodec = item.get("acodec", "none")
-            vcodec = item.get("vcodec", "none")
+            acodec = str(item.get("acodec") or "none")
+            vcodec = str(item.get("vcodec") or "none")
+            ext = str(item.get("ext") or "mp4")
+            format_note = str(item.get("format_note") or "")
+
+            # Ignore internal storyboard / thumbnail mhtml sheets
+            if ext == "mhtml" or "storyboard" in format_note.lower():
+                continue
+
             stream_type = "video"
             if acodec != "none" and vcodec == "none":
                 stream_type = "audio"
+            elif acodec != "none" and vcodec != "none":
+                stream_type = "combined"
             elif acodec == "none" and vcodec == "none":
-                continue
-            filesize = item.get("filesize") or item.get("filesize_approx")
-            filesize_mb = f"{round(filesize / (1024 * 1024), 1)} MB" if filesize else "unknown"
-            resolution = item.get("resolution") or item.get("format_note") or "unknown"
-            if stream_type == "audio":
-                resolution = f"audio ({item.get('abr', 128)} kbps)"
+                if item.get("height") or item.get("resolution") or item.get("fps"):
+                    stream_type = "video"
+                elif item.get("abr") or item.get("asr"):
+                    stream_type = "audio"
+                else:
+                    continue
+
+            filesize = item.get("filesize")
+            filesize_approx = item.get("filesize_approx")
+            res_val = item.get("resolution")
+            if not res_val or res_val == "unknown":
+                if item.get("height"):
+                    res_val = f"{item.get('width', '')}x{item.get('height')}" if item.get('width') else f"{item.get('height')}p"
+                elif stream_type == "audio":
+                    abr = round(item.get("abr") or item.get("tbr") or 128)
+                    res_val = f"audio ({abr} kbps)"
+                else:
+                    res_val = format_note or "standard"
+
             formats_list.append(
                 {
-                    "format_id": item.get("format_id"),
-                    "ext": item.get("ext"),
-                    "resolution": resolution,
+                    "format_id": str(item.get("format_id") or ""),
+                    "ext": ext,
+                    "resolution": res_val,
+                    "width": item.get("width"),
+                    "height": item.get("height"),
                     "vcodec": vcodec,
                     "acodec": acodec,
-                    "filesize": filesize_mb,
-                    "fps": item.get("fps", ""),
+                    "filesize": filesize,
+                    "filesize_approx": filesize_approx,
+                    "fps": item.get("fps") or "",
                     "type": stream_type,
-                    "tbr": round(item.get("tbr") or 0, 1),
+                    "tbr": round(item.get("tbr") or 0, 1) if item.get("tbr") else None,
+                    "abr": round(item.get("abr") or 0, 1) if item.get("abr") else None,
+                    "vbr": round(item.get("vbr") or 0, 1) if item.get("vbr") else None,
+                    "asr": item.get("asr"),
+                    "audio_channels": item.get("audio_channels"),
+                    "dynamic_range": item.get("dynamic_range"),
+                    "container": item.get("container") or ext,
+                    "protocol": item.get("protocol"),
+                    "format_note": format_note,
                 }
             )
-        # Keep UI responsive: cap to top candidates rather than returning very large format arrays.
-        formats_list.sort(key=lambda x: (x.get("tbr") or 0), reverse=True)
-        formats_list = formats_list[:80]
+
+        # Add universal synthesized combined & audio profiles for maximum coverage
+        has_video = any(f.get("type") in ("video", "combined") for f in formats_list)
+        has_audio = any(f.get("type") in ("audio", "combined") for f in formats_list)
+
+        synth_presets = []
+        if has_video and has_audio:
+            synth_presets.extend([
+                {
+                    "format_id": "bestvideo+bestaudio/best",
+                    "ext": "mp4",
+                    "resolution": "Auto Max Quality",
+                    "height": 2160,
+                    "width": 3840,
+                    "vcodec": "Best Video (DASH)",
+                    "acodec": "Best Audio (DASH)",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": 60,
+                    "type": "combined",
+                    "tbr": 25000,
+                    "abr": None,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "HDR/SDR",
+                    "container": "mp4",
+                    "protocol": "https",
+                    "format_note": "Highest quality video merged with best audio track (Auto)",
+                },
+                {
+                    "format_id": "bestvideo[height<=2160]+bestaudio/best",
+                    "ext": "mp4",
+                    "resolution": "3840x2160 (4K UHD)",
+                    "height": 2160,
+                    "width": 3840,
+                    "vcodec": "AV1 / VP9",
+                    "acodec": "Opus / AAC",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": 60,
+                    "type": "combined",
+                    "tbr": 18500,
+                    "abr": None,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "HDR",
+                    "container": "mp4",
+                    "protocol": "https",
+                    "format_note": "4K Ultra HD Pre-merged Combined MP4",
+                },
+                {
+                    "format_id": "bestvideo[height<=1440]+bestaudio/best",
+                    "ext": "mp4",
+                    "resolution": "2560x1440 (1440p QHD)",
+                    "height": 1440,
+                    "width": 2560,
+                    "vcodec": "AV1 / VP9",
+                    "acodec": "Opus / AAC",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": 60,
+                    "type": "combined",
+                    "tbr": 10500,
+                    "abr": None,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "SDR",
+                    "container": "mp4",
+                    "protocol": "https",
+                    "format_note": "1440p Quad HD Pre-merged Combined MP4",
+                },
+                {
+                    "format_id": "bestvideo[height<=1080]+bestaudio/best",
+                    "ext": "mp4",
+                    "resolution": "1920x1080 (1080p FHD)",
+                    "height": 1080,
+                    "width": 1920,
+                    "vcodec": "H.264 / AV1",
+                    "acodec": "AAC / Opus",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": 60,
+                    "type": "combined",
+                    "tbr": 5800,
+                    "abr": None,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "SDR",
+                    "container": "mp4",
+                    "protocol": "https",
+                    "format_note": "1080p Full HD Pre-merged Combined MP4",
+                },
+                {
+                    "format_id": "bestvideo[height<=720]+bestaudio/best",
+                    "ext": "mp4",
+                    "resolution": "1280x720 (720p HD)",
+                    "height": 720,
+                    "width": 1280,
+                    "vcodec": "H.264 / AV1",
+                    "acodec": "AAC / Opus",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": 60,
+                    "type": "combined",
+                    "tbr": 3200,
+                    "abr": None,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "SDR",
+                    "container": "mp4",
+                    "protocol": "https",
+                    "format_note": "720p HD Pre-merged Combined MP4",
+                },
+            ])
+
+        if has_audio:
+            synth_presets.extend([
+                {
+                    "format_id": "mp3-320",
+                    "ext": "mp3",
+                    "resolution": "audio (320 kbps)",
+                    "height": None,
+                    "width": None,
+                    "vcodec": "none",
+                    "acodec": "mp3 (LAME CBR)",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": "",
+                    "type": "audio",
+                    "tbr": 320,
+                    "abr": 320,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "—",
+                    "container": "mp3",
+                    "protocol": "https",
+                    "format_note": "Master 320kbps CBR MP3 Audio Extraction",
+                },
+                {
+                    "format_id": "flac",
+                    "ext": "flac",
+                    "resolution": "audio (Lossless)",
+                    "height": None,
+                    "width": None,
+                    "vcodec": "none",
+                    "acodec": "flac",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": "",
+                    "type": "audio",
+                    "tbr": 950,
+                    "abr": 950,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "—",
+                    "container": "flac",
+                    "protocol": "https",
+                    "format_note": "Audiophile 24-bit Lossless FLAC Audio",
+                },
+                {
+                    "format_id": "wav",
+                    "ext": "wav",
+                    "resolution": "audio (1411 kbps PCM)",
+                    "height": None,
+                    "width": None,
+                    "vcodec": "none",
+                    "acodec": "pcm_s16le",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": "",
+                    "type": "audio",
+                    "tbr": 1411,
+                    "abr": 1411,
+                    "vbr": None,
+                    "asr": 48000,
+                    "audio_channels": 2,
+                    "dynamic_range": "—",
+                    "container": "wav",
+                    "protocol": "https",
+                    "format_note": "Studio Uncompressed PCM WAV Audio",
+                },
+                {
+                    "format_id": "m4a",
+                    "ext": "m4a",
+                    "resolution": "audio (256 kbps)",
+                    "height": None,
+                    "width": None,
+                    "vcodec": "none",
+                    "acodec": "mp4a.40.2 (AAC-LC)",
+                    "filesize": None,
+                    "filesize_approx": None,
+                    "fps": "",
+                    "type": "audio",
+                    "tbr": 256,
+                    "abr": 256,
+                    "vbr": None,
+                    "asr": 44100,
+                    "audio_channels": 2,
+                    "dynamic_range": "—",
+                    "container": "m4a",
+                    "protocol": "https",
+                    "format_note": "Apple Native 256kbps AAC M4A",
+                },
+            ])
+
+        # Sort raw formats with highest resolution/bitrate first
+        formats_list.sort(key=lambda x: (
+            1 if x.get("type") == "combined" else (2 if x.get("type") == "video" else 3),
+            -(x.get("height") or 0),
+            -(x.get("tbr") or x.get("abr") or 0)
+        ))
+
+        all_final_formats = synth_presets + formats_list
 
         response_data = {
             "title": info.get("title", "Unknown Title"),
@@ -514,7 +788,7 @@ def _get_info_impl(url: str) -> Dict[str, Any]:
             "thumbnail": info.get("thumbnail", ""),
             "channel": info.get("channel", "Unknown Channel"),
             "description": (info.get("description", "")[:500] + "...") if info.get("description") else "",
-            "formats": formats_list,
+            "formats": all_final_formats,
         }
         INFO_CACHE[url] = {"ts": now_ts, "data": response_data}
         if len(INFO_CACHE) > 200:
@@ -782,34 +1056,45 @@ def open_browser_when_ready() -> None:
         log_warn(f"Backend did not become ready at {BACKEND_URL} in time.")
 
 
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 def print_banner(settings: dict):
     theme_name = settings.get("theme", "dark")
     Colors.apply_theme(theme_name)
-    
+
+    local_ip = get_local_ip()
     banner = f"""{Colors.ACCENT}{Colors.BOLD}
-██╗     ███████╗███╗   ██╗██╗     ██╗   ██╗    ██████╗ ██╗     ██████╗ 
+██╗     ███████╗███╗   ██╗██╗     ██╗   ██╗    ██████╗ ██╗     ██████╗
 ██║     ██╔════╝████╗  ██║██║     ██║   ██║    ██╔══██╗██║     ██╔══██╗
 ██║     █████╗  ██╔██╗ ██║██║     ██║   ██║    ██║  ██║██║     ██████╔╝
-██║     ██╔══╝  ██║╚██╗██║██║     ██║   ██║    ██║  ██║██║     ██╔═══╝ 
-███████╗███████╗██║ ╚████║███████╗╚██████╔╝    ██████╔╝███████╗██║     
+██║     ██╔══╝  ██║╚██╗██║██║     ██║   ██║    ██║  ██║██║     ██╔═══╝
+███████╗███████╗██║ ╚████║███████╗╚██████╔╝    ██████╔╝███████╗██║
 ╚══════╝╚══════╝╚═╝  ╚═══╝╚══════╝ ╚═════╝     ╚═════╝ ╚══════╝╚═╝{Colors.RESET}"""
     print(banner, flush=True)
-    
+
     border = f"{Colors.DIM}----------------------------------------------------------------------{Colors.RESET}"
     print(border, flush=True)
     print(f"               {Colors.BOLD}LENLU DLP // MEDIA TERMINAL v2026.4{Colors.RESET}", flush=True)
     print(border, flush=True)
-    
-    host_str = f"{BACKEND_HOST}:{BACKEND_PORT}"
+
+    host_str = f"{local_ip}:{BACKEND_PORT}"
     open_browser = "Enabled" if settings.get("open_browser", True) else "Disabled"
-    
+
     theme_display = {
         "ubuntu": "Ubuntu Purple",
         "green": "Classic Green",
         "powershell": "PowerShell Blue",
         "dark": "VS Code Dark"
     }.get(theme_name, theme_name.upper())
-    
+
     print(f"  {Colors.ACCENT}▶{Colors.RESET} {Colors.BOLD}Host Address:{Colors.RESET} {Colors.TEXT}http://{host_str}{Colors.RESET}", flush=True)
     print(f"  {Colors.ACCENT}▶{Colors.RESET} {Colors.BOLD}Active Theme:{Colors.RESET} {Colors.TEXT}{theme_display}{Colors.RESET}", flush=True)
     print(f"  {Colors.ACCENT}▶{Colors.RESET} {Colors.BOLD}Auto-Browser:{Colors.RESET} {Colors.TEXT}{open_browser}{Colors.RESET}", flush=True)
