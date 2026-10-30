@@ -4,7 +4,7 @@
 ; ============================================================================
 
 #define MyAppName "LENLU DLP"
-#define MyAppVersion "3.1.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "LENLU DLP"
 #define MyAppURL "https://github.com/lenluarun/lenlu-dlp"
 #define MyAppSupportURL "https://github.com/lenluarun/lenlu-dlp/issues"
