@@ -841,12 +841,17 @@ def trigger_download(request: Request, payload: Optional[Dict[str, Any]] = None)
 @app.post("/api/cancel")
 def cancel_task():
     state.cancel_event.set()
+    with state.download_lock:
+        state.pending_downloads.clear()
     proc = state.active_subprocess
-    if proc and proc.poll() is None:
+    if proc:
         try:
-            proc.terminate()
+            if proc.poll() is None:
+                proc.kill()
         except Exception:
             pass
+    broadcast_log("[system] Immediate process termination requested by user.", "warning")
+    broadcast_progress({"status": "cancelled", "percent": 0.0, "title": "Terminated"})
     return {"status": "cancelling", "message": "Cancellation request transmitted."}
 
 @app.get("/api/task-status")
