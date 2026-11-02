@@ -1,0 +1,11 @@
+{
+  "name": "lenlu-dlp",
+  "version": "3.1.0",
+  "description": "LENLU DLP - Terminal GUI Media Downloader",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "build": "echo 'App ready'"
+  }
+}
