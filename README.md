@@ -1,68 +1,65 @@
-# 📟 LENLU DLP — Retro Terminal Media Web GUI
+# LENLU DLP
 
-> A premium, high-fidelity retro terminal interface for media downloading via local hosting.
+LENLU DLP is a local-first media downloader with a desktop wrapper, a FastAPI backend, and a responsive browser interface powered by yt-dlp.
 
----
+## What It Does
 
-## ⚡ Highlights
+- Fetches media metadata and available streams.
+- Downloads video, audio, subtitles, and merged formats.
+- Supports batch downloads and a local download queue.
+- Provides a searchable format matrix with codec, resolution, bitrate, and size details.
+- Includes a local media library and built-in player.
+- Stores downloads in a user-selected folder.
+- Tracks session progress and statistics.
+- Offers desktop and browser modes with responsive mobile navigation.
 
-* **📟 Immersive Retro Aesthetic**: Sleek monospace terminal design styled with custom color schemes (Modern Dark, Classic Green, PowerShell Blue, Ubuntu Purple).
-* **🔄 Local Engine**: Powered by Python's **FastAPI** + **yt-dlp** for direct local filesystem downloads, high-res merging (with ffmpeg), and an integrated local media player.
-* **🌐 Deploy Anywhere**: Deploy the static frontend on Vercel or GitHub Pages, and securely link to your local server backend.
+## Windows Installer
 
----
+The packaged application is built with PyInstaller and distributed through Inno Setup. The installer includes the Python runtime and application dependencies, so end users do not need to install Python separately.
 
-## 📥 Installation & Setup
+The installer creates desktop and Start Menu shortcuts, stores packaged settings under `%APPDATA%\\LENLU DLP`, and starts a local server on `127.0.0.1`.
 
-### For End Users (Recommended)
-The easiest way to get started is using the official Windows Installer.
+FFmpeg is required for stream merging and audio conversion. Install it separately and add it to `PATH` unless it is bundled into the release package.
 
-1. **Download**: Get the latest `LENLU_DLP_Setup.exe` from the [Releases](#) section.
-2. **Install**: Run the installer. It will automatically:
-   - Install the application to `C:\Program Files\LENLU DLP`.
-   - Create a desktop shortcut.
-   - Configure the required local directories.
-3. **Launch**: Double-click the **LENLU DLP** icon on your desktop. The server will start in the background and automatically open the GUI in your default browser.
+## Run From Source
 
-### For Developers
-If you prefer to run from source:
+```powershell
+git clone https://github.com/lenluarun/lenlu-dlp.git
+cd lenlu-dlp
+python -m pip install -r requirements.txt
+python app/backend/main_app.py
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/lenluarun/lenlu-dlp.git
-   cd lenlu-dlp
-   ```
-2. **Install dependencies**:
-   ```bash
-   pip install fastapi uvicorn yt-dlp
-   ```
-3. **Run the application**:
-   ```bash
-   python src/run_gui.py
-   ```
+For browser/server mode:
 
----
+```powershell
+python app/backend/run_gui.py
+```
 
-## ⚙️ Configuration
+Then open `http://127.0.0.1:8000/app`.
 
-| Parameter | Description |
-| :--- | :--- |
-| `downloads_dir` | Path where downloaded files are saved. |
-| `theme` | Visual style (`dark`, `green`, `powershell`, `ubuntu`). |
+## Configuration
 
+Settings include the download directory, default format, speed limit, proxy, cookies file, theme, automatic browser opening, and optional deployed frontend URL.
 
----
+Source development stores settings in `app/gui/settings.json`. Packaged Windows builds use `%APPDATA%\\LENLU DLP\\settings.json` so preferences remain writable after installation.
 
-## 💎 Custom Keyboard Commands (CLI Console)
+## Build
 
-Type these inside the GUI footer prompt and hit **ENTER**:
-* `status` - Retrieve connection status and process details.
-* `clear` - Clear console feed buffer.
-* `library` - View and refresh local downloads library.
-* `select-folder` - Open OS folder picker to change download directory.
-* `help formats` - Show quick matrix guide.
+```powershell
+python build/build_app.py
+```
 
----
+The executable is written to `dist/main_app.exe`. Compile `installer/setup.iss` with Inno Setup to create the Windows installer.
 
-## 📜 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## Publishing
+
+The app exposes `/api/version` and checks GitHub Releases for newer versions. Publish the installer as a release asset named `LENLU_DLP_Setup.exe`.
+
+Windows shows `Unknown publisher` until the executable and installer are signed with a trusted Authenticode certificate. Use an OV or EV certificate and timestamp signatures with `signtool` for public distribution.
+
+The static site is in `landing/`. For Cloudflare Pages, use `landing` as the root directory, leave the build command empty, and use `.` as the output directory. Store installer binaries in GitHub Releases or Cloudflare R2. See [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
+
+## License
+
+Distributed under the MIT License.

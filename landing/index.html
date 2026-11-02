@@ -87,6 +87,30 @@
     /* ─── Content wrapper ────────────────────────────────────────────────── */
     .site-wrap { position: relative; z-index: 2; }
 
+    .release-rail { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:28px; }
+    .release-card { border:1px solid var(--border); background:linear-gradient(135deg,rgba(0,230,118,.08),rgba(255,255,255,.025)); padding:20px; border-radius:var(--r-md); transition:transform .2s ease,border-color .2s ease; }
+    .release-card:hover { transform:translateY(-3px); border-color:var(--green); }
+    .release-card.legacy { background:linear-gradient(135deg,rgba(255,191,0,.08),rgba(255,255,255,.025)); }
+    .release-card h3 { font-family:var(--mono); font-size:15px; color:var(--white); margin-bottom:7px; }
+    .release-card p { color:var(--gray-2); font-size:13px; margin-bottom:14px; }
+    .release-meta { color:var(--gray-3); font:11px var(--mono); margin-bottom:14px; }
+    .ops-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:28px; }
+    .ops-card { border:1px solid var(--border); border-radius:var(--r-md); background:linear-gradient(145deg,rgba(0,230,118,.08),rgba(255,255,255,.025)); padding:20px; min-height:235px; }
+    .ops-card h3 { font:700 16px var(--sans); color:var(--white); margin:12px 0 7px; }
+    .ops-card p { color:var(--gray-2); font-size:13px; }
+    .ops-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; color:var(--green); background:var(--green-g); border:1px solid var(--border-g); }
+    .ops-status { display:flex; align-items:center; gap:8px; margin:16px 0; color:var(--gray-2); font:11px var(--mono); }
+    .ops-status-dot { width:8px; height:8px; border-radius:50%; background:var(--gray-3); }
+    .ops-status-dot.ok { background:var(--green); box-shadow:0 0 10px var(--green); }
+    .ops-status-dot.warn { background:#ffbf00; }
+    .ops-command { display:flex; gap:8px; align-items:center; margin-top:16px; }
+    .ops-command code { flex:1; min-width:0; overflow:auto; white-space:nowrap; padding:10px; border:1px solid var(--border); border-radius:var(--r-sm); color:var(--green); background:var(--bg-0); font-size:11px; }
+    .ops-select { width:100%; margin-top:14px; padding:10px; color:var(--gray-1); background:var(--bg-0); border:1px solid var(--border-h); border-radius:var(--r-sm); font:12px var(--mono); }
+    .ops-card .btn { margin-top:8px; font-size:12px; padding:9px 13px; cursor:pointer; }
+    .checklist { list-style:none; margin:15px 0 0; display:grid; gap:8px; color:var(--gray-2); font-size:12px; }
+    .checklist li::before { content:'OK'; color:var(--green); font:700 10px var(--mono); margin-right:8px; }
+    @media (max-width:900px) { .ops-grid { grid-template-columns:1fr; } }
+
     /* ─── Utilities ──────────────────────────────────────────────────────── */
     .container { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
 
@@ -175,6 +199,10 @@
     }
     .nav-links a:hover { color: var(--gray-1); }
     .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .nav-installer-btn {
+      padding: 8px 16px; font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; display: inline-flex; align-items: center; gap: 7px;
+    }
 
     /* Mobile burger */
     .nav-burger {
@@ -191,24 +219,38 @@
 
     .mobile-menu {
       display: none; position: fixed; top: 64px; inset-inline: 0;
-      background: rgba(0,0,0,0.97);
-      -webkit-backdrop-filter: blur(20px);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border); padding: 20px 28px;
-      flex-direction: column; gap: 4px; z-index: 9998;
+      background: rgba(6,6,6,0.98);
+      -webkit-backdrop-filter: blur(24px);
+      backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border-g); padding: 16px 22px 24px;
+      flex-direction: column; gap: 2px; z-index: 9998;
+      max-height: calc(100dvh - 64px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.85);
     }
     .mobile-menu.open { display: flex; }
     .mobile-menu a {
-      font-family: var(--mono); font-size: 13px; color: var(--gray-2);
-      padding: 12px 0; border-bottom: 1px solid var(--border);
+      font-family: var(--mono); font-size: 12px; color: var(--gray-2);
+      padding: 11px 0; border-bottom: 1px solid var(--border);
       letter-spacing: .04em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 10px;
+      transition: color .2s, padding-left .2s;
     }
+    .mobile-menu a i { color: var(--green); font-size: 13px; width: 18px; text-align: center; }
+    .mobile-menu a:hover { color: var(--white); padding-left: 4px; }
     .mobile-menu a:last-child { border-bottom: none; }
+    .mobile-menu .mobile-installer-cta {
+      margin-bottom: 10px; padding: 13px 18px;
+      justify-content: center; font-size: 12px; font-weight: 700;
+      text-transform: none; border: none; border-radius: var(--r-sm);
+    }
+    .mobile-menu .mobile-installer-cta i { color: var(--black); font-size: 14px; }
 
     @media (max-width: 800px) {
       .nav-links { display: none; }
-      .nav-actions .btn:not(.btn-primary) { display: none; }
       .nav-burger { display: flex; }
+      .nav-installer-btn { padding: 6px 12px; font-size: 11px; }
     }
 
     /* ─── Hero ───────────────────────────────────────────────────────────── */
@@ -265,8 +307,22 @@
     }
     .hero-cta {
       display: flex; gap: 14px; flex-wrap: wrap;
-      justify-content: center; margin-bottom: 72px;
+      justify-content: center; margin-bottom: 24px;
     }
+    .hero-download-btn {
+      padding: 14px 30px; font-size: 13px; font-weight: 700;
+    }
+    .hero-installer-info {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 56px;
+    }
+    .hero-installer-pill {
+      font-family: var(--mono); font-size: 11px; color: var(--gray-2);
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 14px; display: inline-flex;
+      align-items: center; gap: 7px;
+    }
+    .hero-installer-pill i { color: var(--green); }
     .hero-strip {
       font-size: 11px; color: var(--gray-3); margin-bottom: 20px;
       font-family: var(--mono); letter-spacing: .06em;
@@ -521,9 +577,23 @@
       flex: 1; background: var(--bg-0); border: 1px solid var(--border);
       border-radius: 4px; padding: 5px 12px;
       font-family: var(--mono); font-size: 11px; color: var(--gray-3);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .preview-body { height: 580px; }
-    .preview-body iframe { width: 100%; height: 100%; border: none; display: block; }
+    .preview-body {
+      height: 620px; position: relative; background: var(--bg-0);
+    }
+    .preview-body iframe {
+      width: 100%; height: 100%; border: none; display: block;
+    }
+    @media (max-width: 768px) {
+      .preview-body { height: 530px; }
+      .preview-header { padding: 10px 14px; gap: 10px; }
+      .preview-url-bar { font-size: 10px; padding: 4px 8px; }
+      .preview-expand { padding: 6px 10px; font-size: 11px; }
+    }
+    @media (max-width: 480px) {
+      .preview-body { height: 490px; }
+    }
 
     /* ─── Architecture ───────────────────────────────────────────────────── */
     .arch-grid {
@@ -1033,12 +1103,14 @@
       <a href="#how-it-works">How It Works</a>
       <a href="#formats">Formats</a>
       <a href="#preview">Live App</a>
-      <a href="#installation">Install</a>
+      <a href="#installation">Install Guide</a>
+      <a href="#releases">Installers</a>
       <a href="#commands">Commands</a>
     </div>
     <div class="nav-actions">
-      <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener" class="btn btn-ghost"><i class="fa-brands fa-github"></i> GitHub</a>
-      <a href="local_host.html" class="btn btn-primary"><i class="fa-solid fa-circle-play"></i> Launch App</a>
+      <a href="https://github.com/lenluarun/lenlu-dlp/releases/latest/download/LENLU_DLP_Setup.exe" class="btn btn-primary nav-installer-btn">
+        <i class="fa-solid fa-download"></i> <span>Installer v3.1</span>
+      </a>
       <button class="nav-burger" id="burger" aria-label="menu">
         <span></span><span></span><span></span>
       </button>
@@ -1047,13 +1119,18 @@
 </nav>
 
 <div class="mobile-menu" id="mobile-menu">
-  <a href="#features">Features</a>
-  <a href="#how-it-works">How It Works</a>
-  <a href="#formats">Formats</a>
-  <a href="#preview">Live App</a>
-  <a href="#installation">Install</a>
-  <a href="#commands">Commands</a>
-  <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://github.com/lenluarun/lenlu-dlp/releases/latest/download/LENLU_DLP_Setup.exe" class="btn btn-primary mobile-installer-cta">
+    <i class="fa-solid fa-download"></i> Download Windows Installer (v3.1.0)
+  </a>
+  <a href="#preview"><i class="fa-solid fa-laptop-code"></i> Live Preview</a>
+  <a href="#features"><i class="fa-solid fa-bolt"></i> Features</a>
+  <a href="#how-it-works"><i class="fa-solid fa-diagram-project"></i> How It Works</a>
+  <a href="#formats"><i class="fa-solid fa-table-cells"></i> Formats Matrix</a>
+  <a href="#releases"><i class="fa-solid fa-box-archive"></i> Choose Installer</a>
+  <a href="#installation"><i class="fa-solid fa-terminal"></i> Installation Guide</a>
+  <a href="#operations"><i class="fa-solid fa-screwdriver-wrench"></i> Operations Center</a>
+  <a href="#commands"><i class="fa-solid fa-code"></i> CLI Commands</a>
+  <a href="https://github.com/lenluarun/lenlu-dlp" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub Source</a>
 </div>
 
 <!-- ═══ HERO ══════════════════════════════════════════════════════════════ -->
@@ -1067,7 +1144,7 @@
 
   <div>
     <div class="hero-tag reveal">
-      <span class="tag">v2.0 — Free &amp; Open Source</span>
+      <span class="tag">v3.1 — Free &amp; Open Source</span>
     </div>
     <p class="hero-eyebrow reveal reveal-delay-1">Terminal-native media downloader</p>
     <h1 class="hero-title reveal reveal-delay-1">
@@ -1075,15 +1152,26 @@
       <span class="line2">Built for developers.</span>
     </h1>
     <p class="hero-subtitle reveal reveal-delay-2">
-      LENLU DLP wraps the power of <strong>yt-dlp</strong> in a blazing-fast retro terminal GUI. Fetch, inspect streams, and download media in seconds — no command memorization required.
+      LENLU DLP wraps <strong>yt-dlp</strong> in a local-first desktop workspace. Inspect streams, choose a destination, track progress, and keep downloaded media on your own machine.
     </p>
-    <div class="hero-cta reveal reveal-delay-2">
-      <a href="app/gui/local_host.html" class="btn btn-primary btn-lg"><i class="fa-solid fa-terminal"></i> Open Terminal App</a>
-      <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe" class="btn btn-primary btn-lg"><i class="fa-solid fa-download"></i> Download Setup.exe</a>
-      <a href="https://github.com/lenluarun/lenlu-dlp.git" target="_blank" rel="noopener" class="btn btn-ghost btn-lg"><i class="fa-brands fa-github"></i> View Source</a>
-      <a href="#request-source" class="btn btn-ghost btn-lg"><i class="fa-regular fa-envelope"></i> Request Source Code</a>
+    <div class="hero-cta reveal reveal-delay-3">
+      <a href="https://github.com/lenluarun/lenlu-dlp/releases/latest/download/LENLU_DLP_Setup.exe" class="btn btn-primary btn-lg hero-download-btn">
+        <i class="fa-solid fa-download"></i>
+        <span>Download Installer v3.1.0</span>
+      </a>
+      <a href="#preview" class="btn btn-ghost btn-lg">
+        <i class="fa-solid fa-laptop-code"></i> Live Preview
+      </a>
+      <a href="#releases" class="btn btn-ghost btn-lg">
+        <i class="fa-solid fa-box-archive"></i> All Installers
+      </a>
     </div>
-    <p class="hero-strip reveal reveal-delay-3">Compatible with — </p>
+    <div class="hero-installer-info reveal reveal-delay-3">
+      <span class="hero-installer-pill"><i class="fa-brands fa-windows"></i> Windows 10/11 64-Bit</span>
+      <span class="hero-installer-pill"><i class="fa-solid fa-shield-halved"></i> 100% Free &amp; Open Source</span>
+      <span class="hero-installer-pill"><i class="fa-solid fa-file-zipper"></i> LENLU_DLP_Setup.exe (~70 MB)</span>
+    </div>
+    <p class="hero-strip reveal reveal-delay-3">Local processing for — </p>
     <div class="hero-platforms reveal reveal-delay-3">
       <span><i class="fa-brands fa-windows"></i>&nbsp; Windows</span>
       <span><i class="fa-brands fa-apple"></i>&nbsp; macOS</span>
@@ -1941,6 +2029,73 @@
   </div>
 </section>
 
+<!-- ═══ RELEASES ════════════════════════════════════════════════════════ -->
+<section id="releases">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Release Archive</p>
+      <h2 class="section-title reveal">Choose your installer.</h2>
+      <p class="section-body reveal">The current build is recommended. The legacy installer remains available for older workflows.</p>
+    </div>
+    <div class="release-rail reveal">
+      <article class="release-card">
+        <h3>LENLU DLP 3.1.0</h3>
+        <div class="release-meta">CURRENT // WINDOWS 64-BIT</div>
+        <p>Updated desktop wrapper, reliable folder selection, update notifications, and refreshed interface.</p>
+        <a class="btn btn-primary" href="https://github.com/lenluarun/lenlu-dlp/releases/latest/download/LENLU_DLP_Setup.exe"><i class="fa-solid fa-download"></i> Download Current</a>
+      </article>
+      <article class="release-card legacy">
+        <h3>LENLU DLP 1.0.0</h3>
+        <div class="release-meta">LEGACY // WINDOWS 64-BIT</div>
+        <p>Compatibility download for machines or workflows that still depend on the older desktop package.</p>
+        <a class="btn btn-ghost" href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe"><i class="fa-solid fa-box-archive"></i> Download Legacy</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ OPERATIONS CENTER ══════════════════════════════════════════════ -->
+<section id="operations">
+  <div class="container">
+    <div class="section-header-centered">
+      <p class="section-label reveal">Operations Center</p>
+      <h2 class="section-title reveal">Useful controls, ready to run.</h2>
+      <p class="section-body reveal">Check the release channel, copy a real setup command, or follow the static hosting checklist.</p>
+    </div>
+    <div class="ops-grid reveal">
+      <article class="ops-card">
+        <div class="ops-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+        <h3>Release channel</h3>
+        <p>Query GitHub Releases directly from this page and see whether the current installer is available.</p>
+        <div class="ops-status"><span class="ops-status-dot" id="release-status-dot"></span><span id="release-status">Not checked yet</span></div>
+        <button class="btn btn-ghost" id="check-release-btn" type="button"><i class="fa-solid fa-rotate"></i> Check now</button>
+      </article>
+      <article class="ops-card">
+        <div class="ops-icon"><i class="fa-solid fa-terminal"></i></div>
+        <h3>Command composer</h3>
+        <p>Choose an operating system and copy the exact first-run command for a source install.</p>
+        <select class="ops-select" id="ops-command-select" aria-label="Choose setup command">
+          <option value="win">Windows PowerShell</option>
+          <option value="mac">macOS</option>
+          <option value="linux">Linux</option>
+        </select>
+        <div class="ops-command"><code id="ops-command">py -m pip install -r requirements.txt</code><button class="btn btn-primary" id="copy-ops-command" type="button" title="Copy command"><i class="fa-regular fa-copy"></i></button></div>
+      </article>
+      <article class="ops-card">
+        <div class="ops-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <h3>Cloudflare Pages</h3>
+        <p>Use Pages for the static landing site and GitHub Releases or R2 for installer binaries.</p>
+        <ul class="checklist">
+          <li>Root directory: landing</li>
+          <li>Build command: empty</li>
+          <li>Output directory: .</li>
+        </ul>
+        <a class="btn btn-ghost" href="https://github.com/lenluarun/lenlu-dlp/blob/main/docs/CLOUDFLARE.md" target="_blank" rel="noopener"><i class="fa-solid fa-book-open"></i> Hosting guide</a>
+      </article>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ CLI COMMANDS ══════════════════════════════════════════════════════ -->
 <section id="commands">
   <div class="container">
@@ -2065,7 +2220,7 @@
         <h5>Setup</h5>
         <a href="#installation">Installation</a>
         <a href="#commands">CLI Commands</a>
-        <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe">Download Setup.exe</a>
+        <a href="https://github.com/lenluarun/lenlu-dlp/releases/download/V1.0.0/LENLU_DLP_Setup.exe">Legacy Windows installer</a>
       </div>
       <div class="footer-col">
         <h5>Resources</h5>
@@ -2552,6 +2707,70 @@ function clearRequestForm() {
   document.querySelector('input[name="req-type"][value="Contribute"]').checked = true;
   document.getElementById('req-hint').textContent = '';
 }
+
+/* Operations center controls */
+(function initOperationsCenter() {
+  const releaseButton = document.getElementById('check-release-btn');
+  const releaseStatus = document.getElementById('release-status');
+  const releaseDot = document.getElementById('release-status-dot');
+  const commandSelect = document.getElementById('ops-command-select');
+  const commandOutput = document.getElementById('ops-command');
+  const copyCommandButton = document.getElementById('copy-ops-command');
+  if (!releaseButton || !commandSelect || !commandOutput || !copyCommandButton) return;
+
+  const commands = {
+    win: 'py -m pip install -r requirements.txt',
+    mac: 'python3 -m pip install -r requirements.txt',
+    linux: 'python3 -m pip install -r requirements.txt'
+  };
+
+  function updateCommand() {
+    commandOutput.textContent = commands[commandSelect.value];
+  }
+
+  async function copyCommand() {
+    const value = commandOutput.textContent;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (error) {
+      const helper = document.createElement('textarea');
+      helper.value = value;
+      helper.setAttribute('readonly', '');
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand('copy');
+      helper.remove();
+    }
+    const original = copyCommandButton.innerHTML;
+    copyCommandButton.innerHTML = '<i class="fa-solid fa-check"></i>';
+    setTimeout(() => { copyCommandButton.innerHTML = original; }, 1400);
+  }
+
+  async function checkRelease() {
+    releaseButton.disabled = true;
+    releaseStatus.textContent = 'Checking GitHub Releases...';
+    releaseDot.className = 'ops-status-dot';
+    try {
+      const response = await fetch('https://api.github.com/repos/lenluarun/lenlu-dlp/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
+      if (!response.ok) throw new Error('Release unavailable');
+      const release = await response.json();
+      releaseStatus.textContent = `${release.tag_name || 'Latest release'} is available`;
+      releaseDot.className = 'ops-status-dot ok';
+    } catch (error) {
+      releaseStatus.textContent = 'Offline or no public release found';
+      releaseDot.className = 'ops-status-dot warn';
+    } finally {
+      releaseButton.disabled = false;
+    }
+  }
+
+  commandSelect.addEventListener('change', updateCommand);
+  copyCommandButton.addEventListener('click', copyCommand);
+  releaseButton.addEventListener('click', checkRelease);
+  updateCommand();
+})();
 </script>
 </body>
 </html>

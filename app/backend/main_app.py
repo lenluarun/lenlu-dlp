@@ -4,8 +4,10 @@ import sys
 import os
 import time
 import tkinter as tk
-from tkinter import messagebox
-from app.backend.run_gui import app, BACKEND_HOST, BACKEND_PORT
+from tkinter import messagebox, filedialog
+from app.backend.run_gui import app, BACKEND_HOST, BACKEND_PORT, state
+
+backend_server = None
 
 def show_error_popup(title, message):
     """Displays a native Windows error popup to the user."""
@@ -20,12 +22,12 @@ def show_error_popup(title, message):
 
 def start_backend():
     """Launches the FastAPI backend in a background thread."""
+    global backend_server
     try:
         import uvicorn
-        # CRITICAL FIX: Changed '0.0.0.0' to '127.0.0.1'
-        # '0.0.0.0' is often rejected by Windows WebViews as an invalid address
-        # '127.0.0.1' is the standard localhost address and is widely accepted
-        uvicorn.run(app, host="127.0.0.1", port=BACKEND_PORT, reload=False, log_level="error")
+        config = uvicorn.Config(app, host="127.0.0.1", port=BACKEND_PORT, reload=False, log_level="error")
+        backend_server = uvicorn.Server(config)
+        backend_server.run()
     except Exception as e:
         show_error_popup(
             "Backend Connection Error",
@@ -44,7 +46,6 @@ if __name__ == "__main__":
         time.sleep(2)
 
         # 3. Create Native Window Wrapper
-        # CRITICAL FIX: Changed 0.0.0.0 to 127.0.0.1 here as well
         url = f"http://127.0.0.1:{BACKEND_PORT}/app"
 
         window = webview.create_window(
@@ -56,9 +57,15 @@ if __name__ == "__main__":
             fullscreen=False
         )
 
-        # 4. Force-Kill Application on Close
         def on_closing():
-            os._exit(0)
+            state.cancel_event.set()
+            if state.active_subprocess and state.active_subprocess.poll() is None:
+                try:
+                    state.active_subprocess.terminate()
+                except Exception:
+                    pass
+            if backend_server is not None:
+                backend_server.should_exit = True
 
         window.events.closing += on_closing
 
