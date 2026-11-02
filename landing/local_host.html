@@ -292,13 +292,20 @@
       background-color: var(--bg-tertiary); padding: 18px; margin-bottom: 18px;
       border-radius: var(--radius-md); box-shadow: 0 0 18px var(--accent-glow); flex-wrap: wrap;
     }
-    .meta-thumbnail-wrapper {
-      width: 200px; aspect-ratio: 16/9; border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm); overflow: hidden; background-color: #000; flex-shrink: 0; position: relative;
+    .meta-thumbnail-column {
+      display: flex; flex-direction: column; gap: 8px;
+      width: 250px; max-width: 100%; flex-shrink: 0;
     }
-    .meta-thumbnail-wrapper img { width: 100%; height: 100%; object-fit: contain; transition: transform 0.3s ease; background:#000; }
-    .meta-thumbnail-wrapper:hover img { transform: scale(1.02); }
-    .thumbnail-download { position:absolute; right:8px; bottom:8px; z-index:2; border:1px solid var(--accent-color); border-radius:999px; padding:7px 10px; background:rgba(8,17,24,.9); color:var(--accent-color); cursor:pointer; font:700 10px 'DM Sans',sans-serif; }
+    .meta-thumbnail-wrapper {
+      width: 100%; aspect-ratio: 16/9; border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm); overflow: hidden; background-color: #04090e;
+      position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 16px rgba(0,0,0,0.7);
+    }
+    .meta-thumbnail-wrapper img { width: 100%; height: 100%; object-fit: contain; transition: transform 0.25s ease; background: transparent; display: block; }
+    .meta-thumbnail-wrapper:hover img { transform: scale(1.03); }
+    .thumbnail-download-actions { display: flex; gap: 6px; width: 100%; }
+    .thumbnail-download-actions button { flex: 1; padding: 7px 6px; font-size: 10px; font-weight: 700; text-align: center; white-space: nowrap; }
     .meta-details { flex: 1; display: flex; flex-direction: column; gap: 9px; min-width: 260px; }
     .meta-row { font-size: 12px; display: flex; align-items: flex-start; flex-wrap: wrap; gap: 7px; }
     .meta-label { color: var(--text-dim); width: 110px; flex-shrink: 0; font-weight: 700; font-size: 11px; letter-spacing: .04em; }
@@ -843,9 +850,14 @@
         </div>
 
         <div class="metadata-card hidden" id="metadata-card">
-          <div class="meta-thumbnail-wrapper">
-            <img id="meta-thumb" src="" alt="Thumbnail">
-            <button id="btn-download-thumbnail" class="thumbnail-download" type="button">DOWNLOAD_THUMB</button>
+          <div class="meta-thumbnail-column">
+            <div class="meta-thumbnail-wrapper" id="thumbnail-preview-box" title="Click to view full image">
+              <img id="meta-thumb" src="" alt="Thumbnail">
+            </div>
+            <div class="thumbnail-download-actions">
+              <button id="btn-download-thumbnail" class="terminal-btn-compact primary" type="button" title="Save thumbnail to download directory">SAVE_THUMBNAIL</button>
+              <button id="btn-view-thumbnail" class="terminal-btn-compact secondary" type="button" title="Open full resolution image">VIEW_FULL</button>
+            </div>
           </div>
           <div class="meta-details">
             <div class="meta-row"><span class="meta-label">TITLE:</span><span class="meta-value text-glow" id="meta-title"></span></div>
@@ -1257,6 +1269,46 @@
             <button id="btn-save-settings" class="terminal-btn primary">COMMIT_CHANGES</button>
             <button id="btn-reset-settings" class="terminal-btn secondary">REVERT_SETTINGS</button>
             <button id="btn-use-site-folder" class="terminal-btn secondary">USE_SITE_FOLDER</button>
+          </div>
+        </div>
+
+        <div class="card-border" id="card-app-update">
+          <div class="card-header">⚡ APPLICATION_UPDATE_MANAGER</div>
+          <div class="grid-2">
+            <div>
+              <div class="form-group">
+                <label>CURRENT_VERSION</label>
+                <div class="setup-chip" id="update-current-version">v3.1.0 (INSTALLED)</div>
+              </div>
+              <div class="form-group">
+                <label>LATEST_RELEASE</label>
+                <div class="setup-chip" id="update-latest-version">CLICK CHECK_FOR_UPDATES</div>
+              </div>
+            </div>
+            <div>
+              <div class="form-group">
+                <label for="update-repo-name">UPDATE_SOURCE_REPO</label>
+                <input type="text" id="update-repo-name" value="lenluarun/lenlu-dlp" placeholder="owner/repo">
+                <small class="form-help">GitHub repository to pull releases and setup packages from.</small>
+              </div>
+              <div class="form-group">
+                <label for="update-custom-url">CUSTOM_PACKAGE_URL (OPTIONAL)</label>
+                <input type="text" id="update-custom-url" placeholder="Direct URL to .exe setup">
+                <small class="form-help">Optional override for direct installer download.</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-note" id="update-status-box" style="margin-top:12px">
+            <p style="margin-bottom:6px;font-weight:bold;color:var(--accent-color)" id="update-status-title">[SYSTEM] UPDATE SERVICE READY</p>
+            <p style="font-size:11px;color:var(--text-dim);white-space:pre-wrap;max-height:100px;overflow-y:auto" id="update-status-notes">Check for new releases to download and update LENLU DLP automatically.</p>
+          </div>
+
+          <div class="settings-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+            <button id="btn-check-updates" class="terminal-btn secondary">CHECK_FOR_UPDATES</button>
+            <button id="btn-download-update" class="terminal-btn primary">DOWNLOAD_APP_UPDATE</button>
+            <button id="btn-run-installer" class="terminal-btn alert-btn hidden">LAUNCH_INSTALLER</button>
+            <button id="btn-open-release-page" class="terminal-btn secondary">VIEW_ON_GITHUB</button>
           </div>
         </div>
 
@@ -2493,21 +2545,59 @@ function updateFormatDetails() {
 async function downloadCurrentThumbnail() {
   const source = metaThumb.src;
   if (!source || source.startsWith("data:")) { showToast("No thumbnail available.", "warn"); return; }
+  const title = (metaTitle.textContent || "thumbnail").trim();
+  showToast("Downloading thumbnail...", "info");
+  logToTerminal(`[system] Requesting thumbnail save for: ${title}`, "info");
+
+  if (apiBaseUrl) {
+    try {
+      const res = await apiFetch("/api/download-thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: source, title: title })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(data.message || "Thumbnail saved to download folder!", "ok");
+        logToTerminal(`[system] ${data.message || "Thumbnail downloaded."}`, "info");
+        setTimeout(fetchLibrary, 1000);
+        return;
+      }
+    } catch (e) {
+      console.warn("Backend thumbnail save failed, falling back:", e);
+    }
+  }
+
   try {
-    const response = await fetch(source);
-    if (!response.ok) throw new Error("Thumbnail request failed");
-    const blob = await response.blob();
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${(metaTitle.textContent || "thumbnail").replace(/[^a-z0-9-_]+/gi, "_")}.jpg`;
+    link.href = (apiBaseUrl || "") + `/api/thumbnail-download?url=${encodeURIComponent(source)}&title=${encodeURIComponent(title)}`;
+    link.download = `${title.replace(/[^a-z0-9-_]+/gi, "_")}_thumb.jpg`;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(link.href);
-  } catch (error) {
+    document.body.removeChild(link);
+    showToast("Thumbnail downloaded.", "ok");
+  } catch (err) {
     window.open(source, "_blank", "noopener");
-    showToast("Opened thumbnail in a new tab because direct download was blocked.", "info");
+    showToast("Opened thumbnail in browser.", "info");
   }
 }
 btnDownloadThumbnail.addEventListener("click", downloadCurrentThumbnail);
+
+const btnViewThumbnail = document.getElementById("btn-view-thumbnail");
+if (btnViewThumbnail) {
+  btnViewThumbnail.addEventListener("click", () => {
+    const src = metaThumb.src;
+    if (src && !src.startsWith("data:")) window.open(src, "_blank", "noopener");
+    else showToast("No thumbnail available.", "warn");
+  });
+}
+const previewBox = document.getElementById("thumbnail-preview-box");
+if (previewBox) {
+  previewBox.addEventListener("click", () => {
+    const src = metaThumb.src;
+    if (src && !src.startsWith("data:")) window.open(src, "_blank", "noopener");
+  });
+}
 
 // ─── DOWNLOAD EXECUTION ───────────────────────────────────────
 function getAdvancedOptions() {
@@ -2576,16 +2666,24 @@ function downloadFormatInBrowser(formatStr) {
 }
 
 async function cancelActiveTask() {
-  logToTerminal("[system] Sending cancellation signal...", "warning");
+  logToTerminal("[system] Sending immediate termination signal...", "warning");
+  btnCancel.disabled = true;
+  btnCancel.textContent = "TERMINATING...";
   try {
     const res = await apiFetch("/api/cancel", { method: "POST" });
-    if (!res.ok) throw new Error("Cancel signal failed.");
+    if (!res.ok) throw new Error(await getResponseError(res, "Cancel signal failed."));
     setProcessState("IDLE");
+    updateProgressUI({ title: "Process Terminated", speed_str: "—", eta_str: "--:--", _size: "—", percent: 0 });
+    progressBar.style.backgroundColor = "var(--alert-color)";
+    progressBar.style.animation = "none";
     logToTerminal("[system] Task terminated successfully.", "warning");
     showToast("Task cancelled.", "warn");
   } catch (e) {
     logToTerminal(`[system] Cancel failed: ${e.message}`, "error");
     showToast("Failed to cancel.", "error");
+  } finally {
+    btnCancel.disabled = false;
+    btnCancel.textContent = "TERMINATE_PROCESS";
   }
 }
 
@@ -2625,6 +2723,26 @@ function updateProgressUI(data) {
   else document.title = "LENLU DLP | Terminal GUI v3.0";
 }
 function handleProgressUpdate(data) {
+  if (!data) return;
+  if (data.status === "cancelled") {
+    setProcessState("IDLE");
+    updateProgressUI({ title: "Task Terminated by User", speed_str: "—", eta_str: "--:--", _size: "—", percent: 0 });
+    progressBar.style.backgroundColor = "var(--alert-color)";
+    progressBar.style.animation = "none";
+    return;
+  }
+  if (data.status === "idle") {
+    if (procStatus.textContent === "ACTIVE") setProcessState("IDLE");
+    return;
+  }
+  if (data.status === "success" || data.status === "finished") {
+    handleDownloadComplete();
+    return;
+  }
+  if (data.status === "error") {
+    handleDownloadError(data.message || "Download failed");
+    return;
+  }
   if (procStatus.textContent !== "ACTIVE") setProcessState("ACTIVE");
   updateProgressUI(data);
 }
@@ -2902,33 +3020,169 @@ document.getElementById("btn-use-site-folder").addEventListener("click", () => {
 async function selectDownloadFolderFromBrowser() {
   if (apiBaseUrl) {
     try {
+      showToast("Opening folder picker...", "info");
       const res = await apiFetch("/api/select-download-folder", { method: "POST" });
       if (!res.ok) throw new Error(await getResponseError(res, "Folder selection failed."));
       const data = await res.json();
       const selectedPath = data && data.path ? String(data.path) : "";
-      if (!selectedPath) throw new Error("No folder path returned from backend picker.");
+      if (!selectedPath) throw new Error("No folder path returned from picker.");
 
       settingsDir.value = selectedPath;
       currentSettings = currentSettings || {};
       currentSettings.downloads_dir = selectedPath;
       currentSettings.default_options = currentSettings.default_options || {};
       currentSettings.default_options.outtmpl = `${selectedPath.replace(/[\\/]$/, "")}/%(title)s.%(ext)s`;
-      showToast("Download folder updated.", "ok");
+      showToast("Download folder updated: " + selectedPath, "ok");
+      logToTerminal(`[system] Download folder updated: ${selectedPath}`, "info");
       fetchLibrary();
       return;
     } catch (err) {
-      showToast(`Folder picker error: ${err.message || err}`, "error");
+      logToTerminal(`[system] Folder picker notice: ${err.message || err}`, "warning");
+      const manual = prompt("Enter or paste download folder path:", settingsDir.value || "");
+      if (manual && manual.trim()) {
+        settingsDir.value = manual.trim();
+        btnSaveSettings.click();
+      }
       return;
     }
   }
 
-  try {
-    await window.showDirectoryPicker();
-    showMessageModal("BROWSER_API_LIMITATION", "Browser security prevents getting the absolute path from the folder picker. Please copy/paste the path manually.", "warn");
-  } catch (err) {
-    if (err.name !== 'AbortError') showToast("Folder picker error.", "error");
+  const manual = prompt("Enter or paste download folder path:", settingsDir.value || "");
+  if (manual && manual.trim()) {
+    settingsDir.value = manual.trim();
+    btnSaveSettings.click();
   }
 }
+
+// ─── APP UPDATE MANAGER ───────────────────────────────────────
+let latestUpdateInfo = null;
+let downloadedInstallerPath = null;
+
+async function checkAppUpdates() {
+  const repoInput = document.getElementById("update-repo-name");
+  const repo = repoInput ? repoInput.value.trim() : "lenluarun/lenlu-dlp";
+  const statusTitle = document.getElementById("update-status-title");
+  const statusNotes = document.getElementById("update-status-notes");
+  const latestChip = document.getElementById("update-latest-version");
+  const btnDownloadUpdate = document.getElementById("btn-download-update");
+
+  if (statusTitle) {
+    statusTitle.textContent = "[SYSTEM] CHECKING FOR RELEASES...";
+    statusTitle.style.color = "var(--accent-color)";
+  }
+  showToast("Checking for updates...", "info");
+
+  try {
+    const res = await apiFetch(`/api/app-update/check?repo=${encodeURIComponent(repo)}`);
+    if (!res.ok) throw new Error("Failed to check updates from server.");
+    const data = await res.json();
+    latestUpdateInfo = data;
+
+    if (latestChip) latestChip.textContent = `v${data.latest_version || "UNKNOWN"}`;
+    if (data.has_update) {
+      if (statusTitle) {
+        statusTitle.textContent = `[UPDATE AVAILABLE] v${data.latest_version}`;
+        statusTitle.style.color = "var(--success-color)";
+      }
+      if (statusNotes) statusNotes.textContent = data.release_notes || "A new version of LENLU DLP is available.";
+      if (btnDownloadUpdate) {
+        btnDownloadUpdate.classList.remove("secondary");
+        btnDownloadUpdate.classList.add("primary");
+      }
+      showToast(`New update v${data.latest_version} available!`, "ok");
+      logToTerminal(`[system] Update available: v${data.latest_version} (${data.release_name || ''})`, "info");
+    } else {
+      if (statusTitle) {
+        statusTitle.textContent = "[UP TO DATE] Running latest release";
+        statusTitle.style.color = "var(--accent-color)";
+      }
+      if (statusNotes) statusNotes.textContent = data.release_notes || "You are running the latest version.";
+      showToast("App is up to date.", "ok");
+    }
+  } catch (err) {
+    if (statusTitle) {
+      statusTitle.textContent = "[ERROR] Update check failed";
+      statusTitle.style.color = "var(--alert-color)";
+    }
+    if (statusNotes) statusNotes.textContent = err.message || "Could not connect to update service.";
+    showToast(`Update check error: ${err.message}`, "warn");
+  }
+}
+
+async function downloadAppUpdate() {
+  const customUrlInput = document.getElementById("update-custom-url");
+  const customUrl = customUrlInput ? customUrlInput.value.trim() : "";
+  const downloadUrl = customUrl || (latestUpdateInfo && latestUpdateInfo.download_url) || "";
+  const btnRun = document.getElementById("btn-run-installer");
+
+  showToast("Starting update download...", "info");
+  logToTerminal("[system] Starting application update download...", "info");
+  switchTab("tab-console");
+  setProcessState("ACTIVE");
+
+  try {
+    const res = await apiFetch("/api/app-update/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: downloadUrl || null })
+    });
+    if (!res.ok) throw new Error(await getResponseError(res, "Update download failed."));
+    const data = await res.json();
+    downloadedInstallerPath = data.file_path;
+    setProcessState("IDLE");
+    showToast("Update installer downloaded successfully!", "ok");
+    logToTerminal(`[system] Update installer ready at: ${data.file_path}`, "info");
+
+    if (btnRun) {
+      btnRun.classList.remove("hidden");
+      btnRun.textContent = `LAUNCH_INSTALLER (${data.file_name || 'Setup.exe'})`;
+    }
+
+    const runNow = await showConfirmModal(
+      "INSTALL_UPDATE",
+      `Update installer saved to:\n${data.file_path}\n\nDo you want to launch the installer now?`,
+      "info",
+      "RUN_INSTALLER"
+    );
+    if (runNow) {
+      runAppInstaller();
+    }
+  } catch (err) {
+    setProcessState("ERROR");
+    showToast(`Update download failed: ${err.message}`, "error");
+    logToTerminal(`[error] Update download failed: ${err.message}`, "error");
+  }
+}
+
+async function runAppInstaller() {
+  try {
+    showToast("Launching installer...", "info");
+    const res = await apiFetch("/api/app-update/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_path: downloadedInstallerPath })
+    });
+    if (!res.ok) throw new Error("Could not launch installer.");
+    showToast("Installer launched. Follow on-screen instructions.", "ok");
+  } catch (err) {
+    showToast(`Failed to launch installer: ${err.message}`, "error");
+  }
+}
+
+function openReleasePage() {
+  const url = (latestUpdateInfo && latestUpdateInfo.update_url) || "https://github.com/lenluarun/lenlu-dlp/releases/latest";
+  window.open(url, "_blank", "noopener");
+}
+
+const elBtnCheck = document.getElementById("btn-check-updates");
+if (elBtnCheck) elBtnCheck.addEventListener("click", checkAppUpdates);
+const elBtnDl = document.getElementById("btn-download-update");
+if (elBtnDl) elBtnDl.addEventListener("click", downloadAppUpdate);
+const elBtnInst = document.getElementById("btn-run-installer");
+if (elBtnInst) elBtnInst.addEventListener("click", runAppInstaller);
+const elBtnRel = document.getElementById("btn-open-release-page");
+if (elBtnRel) elBtnRel.addEventListener("click", openReleasePage);
+
 </script>
 </body>
 </html>

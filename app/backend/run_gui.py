@@ -966,40 +966,327 @@ async def trigger_shell_command(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="Empty command string.")
     return {"status": "started", "message": f"Command accepted: {command}"}
 
+def _pick_folder_powershell(initial_dir: str = "") -> Optional[str]:
+    """Native Windows folder picker fallback using PowerShell and Windows Forms / Shell.Application."""
+    if os.name != 'nt':
+        return None
+    try:
+        init_arg = initial_dir.replace("'", "''") if initial_dir else ""
+        ps_cmd = (
+            "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; "
+            "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            "$f.Description = 'Select LENLU DLP Download Folder'; "
+            "$f.ShowNewFolderButton = $true; "
+        )
+        if init_arg:
+            ps_cmd += f"$f.SelectedPath = '{init_arg}'; "
+        ps_cmd += (
+            "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
+            "Write-Output $f.SelectedPath "
+            "}"
+        )
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            timeout=120
+        )
+        selected = res.stdout.strip()
+        if selected and os.path.isdir(selected):
+            return selected
+    except Exception as e:
+        log_warn(f"PowerShell folder picker fallback error: {e}")
+    return None
+
+def _pick_folder_webview(initial_dir: str = "") -> Optional[str]:
+    """If running inside pywebview, use webview's native window dialog."""
+    try:
+        import webview
+        if hasattr(webview, "windows") and webview.windows:
+            window = webview.windows[0]
+            dialog_type = getattr(webview, "FOLDER_DIALOG", 20)
+            res = window.create_file_dialog(dialog_type, directory=initial_dir)
+            if res and len(res) > 0:
+                selected = res[0]
+                if selected and os.path.isdir(selected):
+                    return selected
+    except Exception as e:
+        log_warn(f"PyWebView folder dialog attempt failed: {e}")
+    return None
+
+def _pick_folder_tkinter(initial_dir: str = "") -> Optional[str]:
+    """Use tkinter filedialog if available."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog as tk_filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        root.lift()
+        root.focus_force()
+        selected = tk_filedialog.askdirectory(
+            initialdir=initial_dir,
+            title="Select LENLU DLP Download Folder"
+        )
+        root.destroy()
+        if selected and os.path.isdir(selected):
+            return selected
+    except Exception as e:
+        log_warn(f"Tkinter folder picker error: {e}")
+    return None
+
 @app.post("/api/select-download-folder")
-def select_download_folder() -> Dict[str, Any]:
+def select_download_folder(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     settings = load_api_settings()
     initial_dir = settings.get("downloads_dir") or get_default_downloads_dir()
-    try:
-        from tkinter import Tk, filedialog
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Folder picker is unavailable: {exc}")
 
-    # Create a Tk root window
-    root = Tk()
-    root.withdraw()
-    # Force the dialog to the front
-    root.attributes("-topmost", True)
-    root.lift()
-    root.focus_force()
+    if payload and payload.get("path"):
+        manual_path = os.path.abspath(payload["path"].strip())
+        if not os.path.exists(manual_path):
+            try:
+                os.makedirs(manual_path, exist_ok=True)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Cannot create folder: {e}")
+        settings["downloads_dir"] = manual_path
+        save_api_settings(settings)
+        return {"status": "ok", "path": manual_path}
 
-    try:
-        selected = filedialog.askdirectory(
-            initialdir=initial_dir,
-            title="Select LENLU DLP download folder"
-        )
-    except Exception as exc:
-        root.destroy()
-        raise HTTPException(status_code=500, detail=f"Folder picker crashed: {exc}")
-    finally:
-        root.destroy()
+    selected = None
+    # 1. Try PyWebView native dialog if running inside PyWebView
+    selected = _pick_folder_webview(initial_dir)
+
+    # 2. Try Tkinter filedialog
+    if not selected:
+        selected = _pick_folder_tkinter(initial_dir)
+
+    # 3. Try PowerShell WinForms FolderBrowserDialog on Windows
+    if not selected and os.name == 'nt':
+        selected = _pick_folder_powershell(initial_dir)
 
     if not selected:
-        raise HTTPException(status_code=400, detail="Folder selection cancelled.")
+        raise HTTPException(status_code=400, detail="Folder selection was cancelled or no folder was chosen.")
 
     settings["downloads_dir"] = selected
     save_api_settings(settings)
     return {"status": "ok", "path": selected}
+
+@app.post("/api/download-thumbnail")
+def download_thumbnail_endpoint(payload: Dict[str, Any]):
+    url = (payload.get("url") or "").strip()
+    title = (payload.get("title") or "thumbnail").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing thumbnail URL.")
+
+    settings = load_api_settings()
+    downloads_dir = settings.get("downloads_dir") or get_default_downloads_dir()
+    os.makedirs(downloads_dir, exist_ok=True)
+
+    safe_title = re.sub(r'[^a-zA-Z0-9_\- ]+', '_', title).strip() or "thumbnail"
+    ext = ".jpg"
+    if ".png" in url.lower():
+        ext = ".png"
+    elif ".webp" in url.lower():
+        ext = ".webp"
+
+    filename = f"{safe_title}_thumb{ext}"
+    filepath = os.path.join(downloads_dir, filename)
+
+    try:
+        import urllib.request
+        import urllib.parse
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            data = response.read()
+            with open(filepath, "wb") as f:
+                f.write(data)
+
+        broadcast_log(f"[system] Thumbnail successfully saved: {filename}", "info")
+        return {
+            "status": "ok",
+            "message": f"Saved thumbnail to {filename}",
+            "filename": filename,
+            "filepath": filepath,
+            "stream_url": f"/api/thumbnail-download?url={urllib.parse.quote(url)}&title={urllib.parse.quote(safe_title)}"
+        }
+    except Exception as exc:
+        log_error(f"Failed to download thumbnail: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to download thumbnail: {exc}")
+
+@app.get("/api/thumbnail-download")
+def stream_thumbnail_download(url: str, title: Optional[str] = "thumbnail"):
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing thumbnail URL.")
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            content = response.read()
+            content_type = response.headers.get("Content-Type", "image/jpeg")
+            safe_title = re.sub(r'[^a-zA-Z0-9_\- ]+', '_', title or "thumbnail").strip() or "thumbnail"
+            ext = ".jpg"
+            if "png" in content_type:
+                ext = ".png"
+            elif "webp" in content_type:
+                ext = ".webp"
+            headers = {
+                "Content-Disposition": f'attachment; filename="{safe_title}_thumb{ext}"'
+            }
+            return Response(content=content, media_type=content_type, headers=headers)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to stream thumbnail: {exc}")
+
+@app.get("/api/app-update/check")
+def check_app_update(repo: Optional[str] = None):
+    current = APP_VERSION
+    update_url = os.environ.get("LENLU_UPDATE_URL", UPDATE_URL)
+    github_repo = repo or "lenluarun/lenlu-dlp"
+
+    result = {
+        "current_version": current,
+        "latest_version": current,
+        "has_update": False,
+        "update_url": update_url,
+        "download_url": None,
+        "release_name": None,
+        "release_notes": "You are currently running version v" + current + ".",
+        "published_at": None,
+        "assets": []
+    }
+
+    try:
+        import urllib.request
+        api_url = f"https://api.github.com/repos/{github_repo}/releases/latest"
+        req = urllib.request.Request(
+            api_url,
+            headers={
+                "User-Agent": "LENLU-DLP-Update-Checker/3.1",
+                "Accept": "application/vnd.github.v3+json"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=8) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            latest_tag = (data.get("tag_name") or "").lstrip("vV")
+            result["latest_version"] = latest_tag or current
+            result["release_name"] = data.get("name") or f"Release {latest_tag}"
+            result["release_notes"] = data.get("body") or "Official GitHub Release."
+            result["update_url"] = data.get("html_url") or update_url
+            result["published_at"] = data.get("published_at")
+
+            assets_list = []
+            setup_download_url = None
+            for asset in data.get("assets", []):
+                asset_name = asset.get("name", "")
+                download_url = asset.get("browser_download_url", "")
+                size_mb = round(asset.get("size", 0) / (1024 * 1024), 2)
+                assets_list.append({"name": asset_name, "url": download_url, "size_mb": size_mb})
+                if asset_name.lower().endswith(".exe"):
+                    setup_download_url = download_url
+
+            result["assets"] = assets_list
+            result["download_url"] = setup_download_url or (assets_list[0]["url"] if assets_list else None)
+
+            if latest_tag and latest_tag != current:
+                result["has_update"] = True
+                result["release_notes"] = f"A new version (v{latest_tag}) is available!\n\n" + (data.get("body") or "")
+    except Exception as exc:
+        result["error"] = str(exc)
+        result["release_notes"] = f"Latest GitHub release check ({exc}). You can download the latest installer directly below."
+
+    return result
+
+@app.post("/api/app-update/download")
+def download_app_update(payload: Optional[Dict[str, Any]] = None):
+    payload = payload or {}
+    download_url = payload.get("url")
+    custom_name = payload.get("filename") or "LENLU_DLP_Setup.exe"
+
+    settings = load_api_settings()
+    downloads_dir = settings.get("downloads_dir") or get_default_downloads_dir()
+    os.makedirs(downloads_dir, exist_ok=True)
+
+    target_path = os.path.join(downloads_dir, custom_name)
+
+    if not download_url:
+        # Check if local installer exists in installer/ directory as fallback
+        local_installer = os.path.join(PROJECT_ROOT, "installer", "LENLU_DLP_Setup.exe")
+        if os.path.exists(local_installer):
+            shutil.copy2(local_installer, target_path)
+            broadcast_log(f"[system] Update installer packaged: {target_path}", "info")
+            return {
+                "status": "ready",
+                "file_path": target_path,
+                "file_name": custom_name,
+                "message": f"Installer ready at {target_path}"
+            }
+        raise HTTPException(status_code=400, detail="No download URL provided and no local installer package found.")
+
+    try:
+        import urllib.request
+        broadcast_log(f"[system] Downloading application update from: {download_url}", "info")
+        req = urllib.request.Request(
+            download_url,
+            headers={"User-Agent": "Mozilla/5.0 LENLU-DLP-App"}
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            total_size = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            chunk_size = 64 * 1024
+
+            with open(target_path, "wb") as out_file:
+                while True:
+                    chunk = resp.read(chunk_size)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+                    downloaded += len(chunk)
+                    pct = round((downloaded / total_size) * 100, 1) if total_size > 0 else 0
+                    broadcast_progress({
+                        "status": "downloading",
+                        "title": f"Downloading LENLU DLP Update ({pct}%)",
+                        "percent": pct,
+                        "speed_str": f"{round(downloaded / (1024*1024), 1)} MB"
+                    })
+
+        broadcast_log(f"[system] Update downloaded successfully to: {target_path}", "info")
+        broadcast_progress({"status": "idle", "percent": 100.0, "title": "Update Downloaded"})
+        return {
+            "status": "ready",
+            "file_path": target_path,
+            "file_name": custom_name,
+            "message": f"Update downloaded to {target_path}"
+        }
+    except Exception as exc:
+        log_error(f"Failed to download update: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to download update: {exc}")
+
+@app.post("/api/app-update/install")
+def run_app_installer(payload: Optional[Dict[str, Any]] = None):
+    payload = payload or {}
+    file_path = payload.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        settings = load_api_settings()
+        downloads_dir = settings.get("downloads_dir") or get_default_downloads_dir()
+        candidate = os.path.join(downloads_dir, "LENLU_DLP_Setup.exe")
+        if os.path.exists(candidate):
+            file_path = candidate
+        else:
+            raise HTTPException(status_code=404, detail="Installer file not found on disk.")
+
+    try:
+        if os.name == 'nt':
+            os.startfile(file_path)
+        else:
+            subprocess.Popen(["xdg-open" if sys.platform.startswith("linux") else "open", file_path])
+        return {"status": "launched", "file_path": file_path, "message": "Installer launched."}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not launch installer: {exc}")
 
 @app.get("/")
 def get_index():
