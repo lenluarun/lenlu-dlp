@@ -8,14 +8,19 @@ def build():
     # The exact command needed to ensure NO ModuleNotFoundError occurs
     # We use --collect-all to force PyInstaller to bundle every dependency of the key libraries
     cmd = [
-        "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--noconsole",
         "--onefile",
+        "--clean",
         "--name", "main_app",
         "--collect-all", "fastapi",
         "--collect-all", "uvicorn",
         "--collect-all", "pywebview",
         "--collect-all", "yt_dlp",
+        "--collect-all", "tkinter",
+        "--hidden-import", "tkinter",
+        "--hidden-import", "tkinter.filedialog",
+        "--hidden-import", "tkinter.messagebox",
         "--add-data", "app/gui;app/gui",
         "--add-data", "app/backend;app/backend",
         "app/backend/main_app.py"
